@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[$(date '+%Y-%m-%d %H:%M:%S')] START | Agent: $CLAUDE_AGENT_NAME\" >> logs/agent-workflow.log"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[$(date '+%Y-%m-%d %H:%M:%S')] STOP  | Agent: $CLAUDE_AGENT_NAME\" >> logs/agent-workflow.log"
+          }
+        ]
+      }
+    ]
+  }
+}
