@@ -1,5 +1,15 @@
 # Quickstart Guide
 
+## Adopting an Existing Project
+
+Joining a codebase that wasn't started with this workflow? Run `/maxPlanck-adopt` **before anything else** (`setup.sh` detects this and tells you). It reverse-engineers the founding docs from the code:
+
+- `docs/prd.md` as-built, with a **Current Capabilities** inventory of what already exists
+- `docs/architecture.md` as-built, with verified build/run commands and a **Known Deviations & Debt** section
+- An adoption-baseline sprint-01 summary recording the starting point
+
+Existing features do not get retroactive stories — story numbering starts with your first new piece of work, via `/maxPlanck-kickoff` or `/maxPlanck-change`. From then on the normal loop applies.
+
 ## Starting a New Project
 
 1. Run `/maxPlanck-kickoff` — describe your project idea

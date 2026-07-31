@@ -68,11 +68,13 @@ Skills are phase-named; agents are role-named, and the two sets must never colli
 
 **Full auto:** `/maxPlanck-feeling-lucky` — runs the entire pipeline above in one command, no manual triggering between phases.
 
+**Adopting an existing project:** `/maxPlanck-adopt` — for a codebase not started with this workflow (source code exists, no `docs/prd.md`): reverse-engineers the founding docs as-built (PRD with a Current Capabilities inventory, architecture doc with a Known Deviations & Debt section, adoption-baseline sprint-01 summary). Run this before any phase skill on a brownfield project; `setup.sh` detects the situation and recommends it at install time.
+
 **Change requests:** `/maxPlanck-change "<description>"` — runs a post-cycle change through the team (docs updated first, then implement → review → test), so manual asks never drift out of the documented state.
 
 **Release:** `/maxPlanck-report` — the Release Manager produces the 4-report handoff pack (internal release report, client release report, blog-style release note, QA checklist) in Markdown + HTML.
 
-Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The two **orchestrator** skills (`feeling-lucky`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
+Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
 
 ## Logging
 
@@ -104,6 +106,7 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 
 ## Definition of Done Per Phase
 
+- **Adopt** (brownfield only): `docs/prd.md` as-built with a Current Capabilities inventory and adoption Change Log entry, `docs/architecture.md` as-built with verified build/run commands and a Known Deviations & Debt section, `docs/sprints/.current-sprint` at `01`, adoption-baseline sprint summary
 - **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct
 - **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns)
 - **Design:** `docs/architecture.md` with data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint

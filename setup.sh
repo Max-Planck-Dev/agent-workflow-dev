@@ -71,6 +71,29 @@ if [ ! -d ".git" ]; then
   [[ "$answer" =~ ^[Yy]$ ]] || exit 0
 fi
 
+# ── Detect brownfield project (existing code, no founding docs) ──
+
+# A project with source code but no docs/prd.md needs /maxPlanck-adopt first:
+# the founding docs must describe what exists before the phase skills can
+# judge code against them.
+BROWNFIELD=0
+if [ ! -f "docs/prd.md" ]; then
+  for cfg in package.json pyproject.toml Cargo.toml go.mod pom.xml build.gradle Gemfile composer.json mix.exs; do
+    if [ -f "$cfg" ]; then
+      BROWNFIELD=1
+      break
+    fi
+  done
+  if [ "$BROWNFIELD" -eq 0 ]; then
+    for dir in src app lib frontend backend; do
+      if [ -d "$dir" ]; then
+        BROWNFIELD=1
+        break
+      fi
+    done
+  fi
+fi
+
 # ── Install agents ───────────────────────────────────────
 
 info "Installing ${PREFIX} agent workflow..."
@@ -267,7 +290,16 @@ echo "  /${PREFIX}-test           — QA Tester writes and runs tests"
 echo "  /${PREFIX}-sprint         — Scrum Master reviews everything"
 echo ""
 echo "  /${PREFIX}-feeling-lucky  — Runs the entire pipeline automatically"
+echo "  /${PREFIX}-adopt          — Adopts an existing codebase (reverse-engineers founding docs)"
 echo "  /${PREFIX}-change         — Runs a change request through the team (docs stay in sync)"
 echo "  /${PREFIX}-report         — Generates the 4-report release pack (internal / client / release note / QA)"
 echo ""
-info "To get started, open Claude Code and run: /${PREFIX}-kickoff"
+if [ "$BROWNFIELD" -eq 1 ]; then
+  warn "Existing project detected without founding docs (no docs/prd.md)."
+  warn "The workflow needs docs that describe what already exists before any"
+  warn "phase can run honestly."
+  echo ""
+  info "To get started, open Claude Code and run: /${PREFIX}-adopt"
+else
+  info "To get started, open Claude Code and run: /${PREFIX}-kickoff"
+fi

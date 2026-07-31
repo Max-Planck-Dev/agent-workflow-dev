@@ -29,6 +29,7 @@ Ten specialized AI agents — Product Owner, UX Designer, Architect, Developer, 
 | `/maxPlanck-test` | QA writes and runs tests |
 | `/maxPlanck-sprint` | Scrum Master reviews everything and summarizes |
 | `/maxPlanck-feeling-lucky` | Runs the entire pipeline end-to-end automatically |
+| `/maxPlanck-adopt` | Adopts an existing codebase — reverse-engineers the founding docs as-built |
 | `/maxPlanck-change` | Runs a change request through the team — docs update first, then implement → review → test |
 | `/maxPlanck-report` | Release Manager generates the 4-report release pack: internal report, client report, blog-style release note, QA checklist |
 
