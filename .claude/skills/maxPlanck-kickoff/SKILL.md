@@ -12,15 +12,17 @@ You are the **Product Owner**. The user wants to kick off a new project (or cont
 
 ## Your Task
 
-1. **Check for existing work** — read `docs/prd.md` and `docs/stories/` to see if anything exists already
-2. **Gather the idea** — if the user provided a project description (as arguments to the command or in conversation), use it. Otherwise, **ask the user** to describe what they want to build before proceeding
-3. **Write the PRD** — create `docs/prd.md` with project vision, target users, MVP scope, out-of-scope items, and **tech stack preferences** if the user specified any (e.g., "use Python", "Vue frontend"). If not stated, note that the Architect will auto-detect or use defaults.
-4. **Write user stories** — create at least 3 prioritized stories in `docs/stories/` following the story template
-5. **Log everything** — log each artifact created to `logs/agent-workflow.log`
+1. **Resolve the sprint** — read `docs/sprints/.current-sprint` (create it containing `01` if missing). If the current sprint folder `docs/sprints/sprint-<NN>/` already contains a `sprint-summary.md`, the prior cycle closed: increment the counter and log that a new sprint started
+2. **Check for existing work** — read `docs/prd.md` and `docs/stories/` to see if anything exists already
+3. **Gather the idea** — if the user provided a project description (as arguments to the command or in conversation), use it. Otherwise, **ask the user** to describe what they want to build before proceeding
+4. **Write or update the PRD** — the PRD is a living document. If `docs/prd.md` does not exist, create it with project vision, target users, MVP scope, out-of-scope items, **tech stack preferences** if the user specified any, and a `## Change Log` section. If it exists, update it in place and append a Change Log entry — never regenerate it
+5. **Write user stories** — create at least 3 prioritized stories in `docs/stories/` following the story template. Numbering continues from the highest existing story. When changing an existing story, keep the file and append a `## History` entry — never silently rewrite it
+6. **Log everything** — log each artifact created to `logs/agent-workflow.log`
 
 ## Acceptance Criteria for This Phase
 
-- `docs/prd.md` exists with vision, users, MVP scope, out-of-scope
+- `docs/sprints/.current-sprint` exists and reflects the correct sprint
+- `docs/prd.md` exists with vision, users, MVP scope, out-of-scope, and a Change Log entry for this sprint
 - At least 3 stories exist in `docs/stories/` with proper format
 - Each story has testable acceptance criteria
 - Stories are prioritized (P0-P3)

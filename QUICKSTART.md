@@ -15,20 +15,32 @@
    → Code appears in the source directories specified by `docs/architecture.md`
 
 5. Run `/maxPlanck-review` — Code Reviewer checks the implementation
-   → Review report in `docs/reviews/`
+   → Review report in `docs/sprints/sprint-NN/reviews/`
 
-6. Run `/maxPlanck-security` — Security Reviewer audits for vulnerabilities and generates ISRs
-   → Security report in `docs/security/`
+6. Run `/maxPlanck-audit` — Security Reviewer audits for vulnerabilities and generates ISRs
+   → Security report in `docs/sprints/sprint-NN/security-report.md`
 
-7. Run `/maxPlanck-devops` — DevOps Engineer creates infrastructure and CI/CD pipeline
+7. Run `/maxPlanck-infra` — DevOps Engineer creates infrastructure and CI/CD pipeline
    → Terraform in `infra/`, CI/CD in `.github/workflows/`, deployment doc in `docs/devops/`
 
 8. Run `/maxPlanck-test` — QA writes and runs tests
-   → Test results in `docs/test-plans/`
+   → Test results in `docs/sprints/sprint-NN/test-plans/`
 
-9. Run `/maxPlanck-sprint` — Scrum Master reviews everything and plans next steps
+9. Run `/maxPlanck-sprint` — Scrum Master reviews everything, updates story statuses, and writes the sprint summary + platform proposals
 
 **Or run `/maxPlanck-feeling-lucky` to execute the entire pipeline automatically.**
+
+Each cycle gets its own folder under `docs/sprints/` (the counter lives in `docs/sprints/.current-sprint`), so nothing from a prior cycle is ever overwritten. Living docs — the PRD, architecture doc, stories, and UX specs — are updated in place with append-only change logs and history sections.
+
+## Requesting a Change
+
+After a cycle, when you've tested things and want something changed, run:
+
+```
+/maxPlanck-change "the card title should truncate at 40 characters"
+```
+
+The Product Owner updates the affected story (with a History entry) and PRD first, then the Developer implements, the Reviewer and QA validate, and the sprint summary is refreshed — so manual asks never drift out of the documented state. QA bug reports route through the same command.
 
 ## Adding a Feature
 
@@ -36,7 +48,7 @@
    "Product Owner, write a story for drag-and-drop card reordering"
 
 2. Then walk it through the pipeline:
-   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-security` → `/maxPlanck-devops` → `/maxPlanck-test`
+   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
 
 3. Check the log anytime: `cat logs/agent-workflow.log`
 
@@ -57,6 +69,13 @@
 
 ## Generating Release Reports
 
-After a release cycle, run `/maxPlanck-report` to produce three handoff documents in `docs/reports/<YYYY-MM-DD>/` — client update, internal QA checklist, and platform proposals — each in both Markdown and HTML.
+When you decide "we're done with this feature set, let's release", run `/maxPlanck-report`. The Release Manager produces four handoff documents in `docs/reports/<YYYY-MM-DD>/`, each in both Markdown and HTML:
 
-The reports use a neutral default theme out of the box. To apply your own branding, create `.claude/maxPlanck-brand.json` with optional `projectName`, `colors`, `fonts`, `logoSvg`, and `storageKeyPrefix` fields (see the "Brand Config Schema" section in `.claude/skills/maxPlanck-report/SKILL.md`).
+1. **Internal release report** — what was done, required steps, follow-ups, heads-up items for the client
+2. **Client release report** — client-facing summary of what the release delivers
+3. **Release note** — a short blog/newsletter piece for the client's website or mailing list
+4. **QA checklist** — what was added and concrete steps to test it (interactive HTML)
+
+Report folders are dated and never overwritten (a same-day rerun gets a `-2` suffix). Platform proposals are no longer part of this pack — the Scrum Master maintains them per sprint in `docs/sprints/sprint-NN/platform-proposals.md`.
+
+The reports use a neutral default theme out of the box. To apply branding, create `.claude/maxPlanck-brand.json`: top-level fields (`projectName`, `colors`, `fonts`, `logoSvg`, `storageKeyPrefix`, `sowReference`) are the **client's** branding, and an optional `company` block is **your own** branding, used only for the internal report (see the "Brand Config Schema" section in `.claude/skills/maxPlanck-report/SKILL.md`).

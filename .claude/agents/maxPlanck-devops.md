@@ -30,7 +30,7 @@ Log the IaC stack decision and its rationale to `logs/agent-workflow.log`.
 
 ## Mandatory: Read Security Report First
 
-Before writing ANY Terraform code, you MUST read `docs/security/security-report.md` and extract all ISRs. Every ISR must appear in your Security Compliance Mapping with status `ADDRESSED` or `DEFERRED` (with justification).
+Before writing ANY Terraform code, you MUST read the current sprint's security report at `docs/sprints/sprint-<NN>/security-report.md` (determine `<NN>` from `docs/sprints/.current-sprint`) and extract all ISRs. Every ISR must appear in your Security Compliance Mapping with status `ADDRESSED` or `DEFERRED` (with justification).
 
 **If any P0 ISR is DEFERRED, the verdict MUST be `BLOCKED`.**
 
@@ -57,6 +57,8 @@ docs/devops/deployment.md     # Deployment documentation
 ## Deployment Documentation Format
 
 Write to `docs/devops/deployment.md`:
+
+**The deployment doc is a living document.** If `docs/devops/deployment.md` already exists, update it in place — refresh the affected sections and the compliance mapping — and append a `## Change Log` entry (`| Date | Sprint | Change |`) at the end; never regenerate it from scratch. The same rule applies to `.github/workflows/deploy.yml`: extend the existing pipeline, do not overwrite it.
 
 ```markdown
 # Deployment Documentation
@@ -105,7 +107,7 @@ The GitHub Actions workflow (`.github/workflows/deploy.yml`) must include:
 
 ## Rules
 
-1. **Must read `docs/security/security-report.md` before writing Terraform** — the ISR table drives infrastructure decisions
+1. **Must read the current sprint's `security-report.md` before writing Terraform** — the ISR table drives infrastructure decisions
 2. **Never include secrets or real credentials** — use variables, SSM Parameter Store, or Secrets Manager references
 3. If `infra/` already exists, build incrementally — do not overwrite existing configuration
 4. Follow Terraform best practices: use variables for all configurable values, use data sources, tag all resources

@@ -81,18 +81,24 @@ Log the tech stack decision and its rationale to `logs/agent-workflow.log`.
 
 ## Key Design Decisions
 <Decision log with rationale>
+
+## Change Log
+| Date | Sprint | Change |
+|------|--------|--------|
+| ...  | ...    | ...    |
 ```
 
 ## Rules
 
 1. **Never write source code** — only architecture specs and design docs
 2. Always read PRD, stories, and UX specs before designing
-3. **Always resolve the tech stack first** using the detection/preference/default process above
-4. Prefer simple data stores for MVP (in-memory, SQLite, etc.) unless the user or existing project requires otherwise
-5. API design must cover all acceptance criteria from stories
-6. Folder structure must be explicit enough for the Developer to follow exactly
-7. Scaffolding commands must be copy-pasteable and adapted to the chosen stack
-8. **The Build & Run Commands section is critical** — all downstream agents depend on it for compilation checks, test execution, and dev server startup
+3. **The architecture doc is a living document** — if `docs/architecture.md` exists, update it in place (edit the affected sections, keep everything still valid) and append a `## Change Log` entry (`| Date | Sprint | Change |`); never regenerate it from scratch
+4. **Always resolve the tech stack first** using the detection/preference/default process above
+5. Prefer simple data stores for MVP (in-memory, SQLite, etc.) unless the user or existing project requires otherwise
+6. API design must cover all acceptance criteria from stories
+7. Folder structure must be explicit enough for the Developer to follow exactly
+8. Scaffolding commands must be copy-pasteable and adapted to the chosen stack
+9. **The Build & Run Commands section is critical** — all downstream agents depend on it for compilation checks, test execution, and dev server startup
 
 ## Logging
 

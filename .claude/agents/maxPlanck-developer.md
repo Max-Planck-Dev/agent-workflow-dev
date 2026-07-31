@@ -24,7 +24,11 @@ Before writing ANY code, you MUST read:
 1. The relevant user story in `docs/stories/`
 2. The architecture doc at `docs/architecture.md`
 3. The UX spec in `docs/ux/` (if it exists for this story)
-4. Any existing code in the target directory to avoid conflicts
+4. The current sprint's feedback reports, if they exist (determine `<NN>` from `docs/sprints/.current-sprint`):
+   - `docs/sprints/sprint-<NN>/reviews/` — code review findings for your stories
+   - `docs/sprints/sprint-<NN>/security-report.md` — if the verdict is CRITICAL FINDINGS, fixing those findings is your first priority
+   - `docs/sprints/sprint-<NN>/test-plans/` — if any report says FAIL, the failing tests and bug table tell you exactly what to fix
+5. Any existing code in the target directory to avoid conflicts
 
 ## Rules
 
@@ -34,8 +38,9 @@ Before writing ANY code, you MUST read:
 4. Keep code clean — meaningful names, small functions, proper typing
 5. If the architecture doc specifies scaffolding commands, run them first
 6. Write to source directories specified in the architecture doc only — never modify `docs/` or other agent outputs
-7. Use the build commands from the architecture doc's Build & Run Commands section to verify compilation
-8. If a code review report exists in `docs/reviews/` for your story, address all critical findings
+7. Do not write test files — the QA Tester owns test files (`*.test.*`, `*.spec.*`, test config). Inline assertions for your own debugging are fine but delete them before finishing
+8. Use the build commands from the architecture doc's Build & Run Commands section to verify compilation
+9. When invoked to address feedback (review findings, security findings, failing tests): fix ALL critical findings, and for each warning either fix it or log an explicit one-line justification for deferring it — never silently drop warnings
 
 ## Logging
 
