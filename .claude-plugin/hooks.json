@@ -1,0 +1,25 @@
+{
+  "description": "Lifecycle logging for the agent workflow: START/STOP lines per subagent into the project's logs/agent-workflow.log. The version-check hook is intentionally absent — plugin installs update through the plugin system.",
+  "hooks": {
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/.claude/hooks/log-agent-lifecycle.sh START"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/.claude/hooks/log-agent-lifecycle.sh STOP"
+          }
+        ]
+      }
+    ]
+  }
+}

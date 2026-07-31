@@ -2,12 +2,39 @@
 
 A demonstration of Claude Code's multi-agent capabilities using Agile role-based subagents that collaborate to build an app.
 
-## How to use?
+## Installation
 
-Install command for teammates:                                                                                                     
-``` 
-  git clone git@github.com:Max-Planck-Dev/agent-workflow-dev.git /tmp/agent-workflow && bash /tmp/agent-workflow/setup.sh . && rm -rf /tmp/agent-workflow       
+### Script install (recommended today)
+
+From your project root:
+
 ```
+git clone git@github.com:Max-Planck-Dev/agent-workflow-dev.git /tmp/agent-workflow && bash /tmp/agent-workflow/setup.sh . && rm -rf /tmp/agent-workflow
+```
+
+The installer copies the agents, skills, hooks, and shared config into your project's `.claude/`, merges the logging hooks into your `settings.json` without touching your own hooks, and records what it installed in `.claude/maxPlanck-workflow-version.json`.
+
+### Plugin install
+
+The repo is also a Claude Code **plugin** (`.claude-plugin/plugin.json`): skills, agents, and the logging hooks load directly from a versioned source instead of being copied into each project. Install goes through a plugin marketplace — ours is coming soon; once it exists, installation is `/plugin marketplace add <marketplace>` + `/plugin install maxplanck`, and updates flow through the plugin system automatically (every commit is a new plugin version).
+
+Note: plugin-installed skills are invoked with the plugin namespace (`/maxplanck:maxPlanck-kickoff`), while script installs use the bare names (`/maxPlanck-kickoff`).
+
+### Make it your own (rebranding)
+
+This is an open project — you can install the whole team under **your** name:
+
+```
+bash /tmp/agent-workflow/setup.sh . --prefix acme
+```
+
+Every file name, skill name, agent name, and cross-reference is rewritten from `maxPlanck` to your prefix: you get `/acme-kickoff`, `/acme-feeling-lucky`, `.claude/acme-default-stack.md`, and so on. Brand the reports too via `.claude/<prefix>-brand.json`.
+
+**Updates still work for rebranded installs** — with one rule: update by re-running the installer with the *same* `--prefix`, and don't hand-edit the installed workflow files (the update overwrites them; customize by forking the source repo instead). The weekly update check knows your prefix and prints the right command. What a rebranded install can't use is the *plugin* route, which ships fixed names.
+
+## Staying up to date
+
+Script installs record their source repo and commit in `.claude/maxPlanck-workflow-version.json`. A `SessionStart` hook checks the source repo at most **once a week** (silently, offline-safe) and, when the installed commit is behind, tells you at the start of your session — with the exact re-install command to run. Updating is just re-running the installer: it overwrites the workflow's own files, cleans up renamed/legacy leftovers, and leaves your project files, your hooks, and your `CLAUDE.md` alone.
 
 ## What Is This?
 

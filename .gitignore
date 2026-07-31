@@ -13,3 +13,4 @@ coverage/
 !*.tfvars.example
 
 .claude/settings.local.json
+.claude/.maxPlanck-last-update-check

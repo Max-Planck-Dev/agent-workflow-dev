@@ -91,6 +91,10 @@ Two layers:
 1. **Lifecycle hooks** (automatic `START`/`STOP`): `.claude/settings.json` wires `SubagentStart`/`SubagentStop` to `.claude/hooks/log-agent-lifecycle.sh`, which reads the hook payload from stdin and extracts the agent name from its `agent_type` field.
 2. **Semantic logging**: agents log decisions inline via Bash echo, per the Logging section in each agent definition.
 
+A third hook, `check-workflow-version.sh` on `SessionStart`, compares the installed workflow commit (`.claude/maxPlanck-workflow-version.json`, written by `setup.sh`) against the source repo at most once a week and surfaces an update hint when behind. It is a silent no-op in this repo itself and in plugin installs.
+
+This repo is also a Claude Code plugin: `.claude-plugin/plugin.json` points `skills`/`agents`/`hooks` at the `.claude/` directories, so the same files serve script installs, plugin installs, and local development. `setup.sh --prefix <name>` produces a rebranded install (all `maxPlanck` names rewritten); rebranded installs update by re-running the installer with the same prefix.
+
 The log grows without bound — readers (Scrum Master, orchestrators) read only the current sprint's slice, not the whole file.
 
 ## Build & Test Commands
@@ -115,5 +119,5 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **Security:** Security report in `docs/sprints/sprint-NN/security-report.md` with OWASP-mapped findings, ISR table (carried + new, stable IDs), and CLEAR/WARNINGS/CRITICAL FINDINGS verdict
 - **DevOps:** Terraform in `infra/`, CI/CD in `.github/workflows/deploy.yml`, deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict
 - **Test:** Test files covering all acceptance criteria, executed with results in `docs/sprints/sprint-NN/test-plans/`
-- **Sprint:** `docs/sprints/sprint-NN/sprint-summary.md` with artifact inventory, story statuses updated, Bugs section, Blockers section listing every unresolved failure verdict, and next-step recommendations; `platform-proposals.md` with carried-over + new proposals
+- **Sprint:** `docs/sprints/sprint-NN/sprint-summary.md` with artifact inventory, story statuses updated, Bugs section, Undocumented Changes section (commits that bypassed the workflow, from the git-log vs activity-log cross-check), Blockers section listing every unresolved failure verdict, and next-step recommendations; `platform-proposals.md` with carried-over + new proposals
 - **Report:** 8 files (4 reports × Markdown + HTML) in a new dated folder under `docs/reports/`, correct per-audience branding, open items surfaced

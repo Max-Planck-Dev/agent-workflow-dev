@@ -77,6 +77,15 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
 - To change the default tech stack, edit `.claude/maxPlanck-default-stack.md`
 - To change the default infrastructure stack, edit the IaC section in `.claude/maxPlanck-default-stack.md`
 
+## Keeping the Workflow Up to Date
+
+Your install records its source commit in `.claude/maxPlanck-workflow-version.json`. Once a week, a session-start check compares it against the source repo — if you're behind, Claude tells you at the start of a session and gives you the exact update command (the same install one-liner; add `--prefix <yours>` if you rebranded). Updating overwrites only the workflow's own files.
+
+Two staleness problems, two answers:
+
+- **Workflow stale** (the team improved the agents/skills upstream) → the weekly check above.
+- **Docs stale** (someone changed project code without going through the workflow) → `/maxPlanck-sprint` cross-references git commits against the agent activity log and lists bypassed commits under "Undocumented Changes" in the sprint summary, with a reconciliation recommendation.
+
 ## Generating Release Reports
 
 When you decide "we're done with this feature set, let's release", run `/maxPlanck-report`. The Release Manager produces four handoff documents in `docs/reports/<YYYY-MM-DD>/`, each in both Markdown and HTML:

@@ -51,6 +51,9 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 ## Bugs
 <Copy any open rows from the QA reports' "Bugs Found" tables. For each: recommended route — `/maxPlanck-change "<fix description>"` for small fixes, or a new story via the Product Owner for larger work. This section may be empty, but must be present.>
 
+## Undocumented Changes
+<Commits made since the last sprint that have no corresponding agent activity in the log — work that bypassed the workflow, so the docs may not reflect it. For each: commit hash, one-line description, and the recommended reconciliation (`/maxPlanck-change` or a doc refresh). May be empty, but must be present.>
+
 ## Recommendations
 <What should be done next and why>
 

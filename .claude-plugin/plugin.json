@@ -1,0 +1,26 @@
+{
+  "name": "maxplanck",
+  "displayName": "MaxPlanck Agent Workflow",
+  "description": "Multi-agent Agile workflow: 10 role-based agents (Product Owner through Release Manager) build software through an observable, file-based pipeline with compounding docs, sprint folders, and release-handoff reports.",
+  "author": {
+    "name": "Max Planck Dev",
+    "url": "https://github.com/Max-Planck-Dev"
+  },
+  "homepage": "https://github.com/Max-Planck-Dev/agent-workflow-dev",
+  "repository": "https://github.com/Max-Planck-Dev/agent-workflow-dev",
+  "keywords": ["agile", "workflow", "multi-agent", "scrum", "release-reports"],
+  "skills": ["./.claude/skills"],
+  "agents": [
+    "./.claude/agents/maxPlanck-product-owner.md",
+    "./.claude/agents/maxPlanck-ux-designer.md",
+    "./.claude/agents/maxPlanck-architect.md",
+    "./.claude/agents/maxPlanck-developer.md",
+    "./.claude/agents/maxPlanck-code-reviewer.md",
+    "./.claude/agents/maxPlanck-security.md",
+    "./.claude/agents/maxPlanck-devops.md",
+    "./.claude/agents/maxPlanck-qa-tester.md",
+    "./.claude/agents/maxPlanck-scrum-master.md",
+    "./.claude/agents/maxPlanck-release-manager.md"
+  ],
+  "hooks": ["./.claude-plugin/hooks.json"]
+}
