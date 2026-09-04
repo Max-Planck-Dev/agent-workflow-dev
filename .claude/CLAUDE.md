@@ -22,11 +22,11 @@ Product Owner → UX Designer → Architect → Developer → Code Reviewer → 
 | `maxPlanck-product-owner` | `docs/prd.md`, `docs/stories/`, `docs/sprints/.current-sprint` |
 | `maxPlanck-ux-designer` | `docs/ux/` |
 | `maxPlanck-architect` | `docs/architecture.md` |
-| `maxPlanck-developer` | Source directories per `docs/architecture.md` (defaults: `frontend/`, `backend/`) |
+| `maxPlanck-developer` | Component paths per the `## Components` table in `docs/architecture.md` |
 | `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` |
 | `maxPlanck-security` | `docs/sprints/sprint-NN/security-report.md` |
-| `maxPlanck-devops` | `infra/`, `.github/workflows/`, `docs/devops/` |
-| `maxPlanck-qa-tester` | test files in source directories, `docs/sprints/sprint-NN/test-plans/` |
+| `maxPlanck-devops` | The infra component's path and each component's CI workflow (both per `docs/architecture.md`), `docs/devops/` |
+| `maxPlanck-qa-tester` | test files within component paths, `docs/sprints/sprint-NN/test-plans/` |
 | `maxPlanck-scrum-master` | `docs/sprints/sprint-NN/sprint-summary.md`, `docs/sprints/sprint-NN/platform-proposals.md` |
 | `maxPlanck-release-manager` | `docs/reports/<date>/` |
 
@@ -42,7 +42,7 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 - `docs/architecture.md` — same Change Log rule
 - `docs/stories/story-NNN.md` — sequential numbering continues forever; changes append a `## History` entry, never silently rewrite
 - `docs/ux/story-NNN-design.md` — redesigns append a `## Revision <date>` section
-- `docs/devops/deployment.md` and `.github/workflows/deploy.yml` — updated incrementally, never regenerated (same rule as `infra/`)
+- `docs/devops/deployment.md` and each component's CI workflow — updated incrementally, never regenerated (same rule as the infrastructure code)
 
 **Sprint-scoped artifacts** (point-in-time, one folder per cycle, prior folders never modified):
 
@@ -76,6 +76,22 @@ Skills are phase-named; agents are role-named, and the two sets must never colli
 
 Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
 
+## Multi-Component Projects
+
+A project may be one folder or several independently-buildable **components**, each possibly its own git repository, and some sibling folders may not belong to the product at all. The Architect records this in `docs/architecture.md`:
+
+- **`## Components`** — one row per in-scope component: `ID`, `Path`, `Kind` (`app` / `service` / `library` / `infra`), `Git repo`, `CI workflow`, `Stack`. Presence in this table *is* what makes a path in scope. Every project has exactly one `infra` component; DevOps writes there, so the infrastructure location is explicit rather than assumed.
+- **`### Excluded Paths`** — sibling folders that are present but not part of this product. Agents must never read, scan, modify, test, or document anything under them. This matters most for the Security Reviewer and the Release Manager, where a leak would put unrelated code into a report.
+
+Rules that follow from it:
+
+- Commands run from the component's own directory, using that component's `## Build & Run Commands` subsection. Never substitute a different installer — `npm ci` and `npm install` are not interchangeable.
+- The project root need not itself be a git repository; the components carry the repositories. Every git call is guarded (`git -C <path> rev-parse --is-inside-work-tree`) and a non-repo path is skipped, never an error.
+- Discovery is **depth-1 inside the project root** — it never recurses, which is what stops a nested project's own sub-folders from being mistaken for components. A component *outside* the project root is supported, but only when a human declares it; it is never auto-discovered. `docs/` and `logs/` always live at the project root.
+- Classification is proposed by the scan and **confirmed by the human**, once, at design or adoption time. The doc is the answer from then on.
+
+**Compatibility:** if `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
+
 ## Logging
 
 All agents must log to `logs/agent-workflow.log` using this format:
@@ -99,7 +115,7 @@ The log grows without bound — readers (Scrum Master, orchestrators) read only 
 
 ## Build & Test Commands
 
-Application code is created by agents during `/maxPlanck-develop`. Build and test commands depend on the tech stack chosen by the Architect — see the Build & Run Commands section in `docs/architecture.md`.
+Application code is created by agents during `/maxPlanck-develop`. Build and test commands depend on the tech stack chosen by the Architect — see the Build & Run Commands section in `docs/architecture.md`. In a multi-component project these are **per component**, as `###` subsections, and every command runs from the component's own directory.
 
 **When the default stack is used (see `.claude/maxPlanck-default-stack.md`):**
 
@@ -113,11 +129,11 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **Adopt** (brownfield only): `docs/prd.md` as-built with a Current Capabilities inventory and adoption Change Log entry, `docs/architecture.md` as-built with verified build/run commands and a Known Deviations & Debt section, `docs/sprints/.current-sprint` at `01`, adoption-baseline sprint summary
 - **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct
 - **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns)
-- **Design:** `docs/architecture.md` with data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint
-- **Develop:** Code in the source directories specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
+- **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint
+- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
 - **Review:** Reports in `docs/sprints/sprint-NN/reviews/` with severity-categorized findings and APPROVED/NEEDS CHANGES verdict
 - **Security:** Security report in `docs/sprints/sprint-NN/security-report.md` with OWASP-mapped findings, ISR table (carried + new, stable IDs), and CLEAR/WARNINGS/CRITICAL FINDINGS verdict
-- **DevOps:** Terraform in `infra/`, CI/CD in `.github/workflows/deploy.yml`, deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict
+- **DevOps:** Terraform in the infra component's path, CI/CD in each component's CI workflow (both resolved from `docs/architecture.md`), deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict
 - **Test:** Test files covering all acceptance criteria, executed with results in `docs/sprints/sprint-NN/test-plans/`
 - **Sprint:** `docs/sprints/sprint-NN/sprint-summary.md` with artifact inventory, story statuses updated, Bugs section, Undocumented Changes section (commits that bypassed the workflow, from the git-log vs activity-log cross-check), Blockers section listing every unresolved failure verdict, and next-step recommendations; `platform-proposals.md` with carried-over + new proposals
 - **Report:** 8 files (4 reports × Markdown + HTML) in a new dated folder under `docs/reports/`, correct per-audience branding, open items surfaced

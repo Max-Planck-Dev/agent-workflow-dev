@@ -37,10 +37,10 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 | Kickoff | User Stories | ✅/❌ | docs/stories/ |
 | UX | Wireframes | ✅/❌ | docs/ux/ |
 | Design | Architecture Doc | ✅/❌ | docs/architecture.md |
-| Develop | Source Code | ✅/❌ | <source directories per docs/architecture.md> |
+| Develop | Source Code | ✅/❌ | <component paths per the ## Components table in docs/architecture.md> |
 | Review | Review Reports | ✅/❌ | docs/sprints/sprint-NN/reviews/ |
 | Security | Security Report | ✅/❌ | docs/sprints/sprint-NN/security-report.md |
-| DevOps | Terraform + CI/CD + Deployment Doc | ✅/❌ | infra/, .github/workflows/, docs/devops/ |
+| DevOps | Terraform + CI/CD + Deployment Doc | ✅/❌ | <infra component path>, <per-component CI workflows>, docs/devops/ |
 | Test | Test Reports | ✅/❌ | docs/sprints/sprint-NN/test-plans/ |
 
 ### Story Status
@@ -52,7 +52,10 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 <Copy any open rows from the QA reports' "Bugs Found" tables. For each: recommended route — `/maxPlanck-change "<fix description>"` for small fixes, or a new story via the Product Owner for larger work. This section may be empty, but must be present.>
 
 ## Undocumented Changes
-<Commits made since the last sprint that have no corresponding agent activity in the log — work that bypassed the workflow, so the docs may not reflect it. For each: commit hash, one-line description, and the recommended reconciliation (`/maxPlanck-change` or a doc refresh). May be empty, but must be present.>
+<Commits made since the last sprint that have no corresponding agent activity in the log — work that bypassed the workflow, so the docs may not reflect it. Commits are gathered per component repository and grouped by component ID. For each: component ID, commit hash, one-line description, and the recommended reconciliation (`/maxPlanck-change` or a doc refresh). Also list any directory that qualifies as a component but appears in neither `## Components` nor `### Excluded Paths`, routed to `/maxPlanck-design` to classify it. "No git repositories in scope — workflow-bypass check not applicable" is valid content. May be empty, but must be present.>
+
+## Component HEADs
+<Each in-scope component repository's short HEAD hash at sprint close. With several repositories a sprint is not atomic, and the release report needs these anchors. Omit only when nothing in scope is a git repository.>
 
 ## Recommendations
 <What should be done next and why>
@@ -90,13 +93,21 @@ Before recommending the next phase, verify:
 - **Before UX:** PRD exists + at least 3 stories with acceptance criteria
 - **Before Design:** UX specs exist for P0/P1 stories
 - **Before Develop:** Architecture doc exists with data models, API endpoints, folder structure
-- **Before Review:** Code exists in the source directories specified by the architecture doc
+- **Before Review:** Code exists in the component paths specified by the architecture doc
 - **Before Security:** Code review completed **this sprint**, no unresolved critical issues
 - **Before DevOps:** Security report exists at `docs/sprints/sprint-<NN>/security-report.md`, no CRITICAL FINDINGS verdict
 - **Before Test:** No critical issues in this sprint's code review (or review not yet done)
 - **Before Sprint Close:** All tests passing, test reports written, ISR compliance mapping complete in `docs/devops/deployment.md`
 
 All phase checks refer to the **current sprint's** artifacts — a review or test report from a prior sprint does not satisfy a gate for this sprint.
+
+## Multi-Component Projects
+
+A project may be one folder or several independently-buildable components, each possibly its own git repository, recorded in the `## Components` table of `docs/architecture.md`. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
+
+- Validate each in-scope component separately — a passing build in one component does not satisfy the gate for another.
+- The project root need not itself be a git repository; components carry the repositories.
+- Never read, scan, or report on anything under `### Excluded Paths`.
 
 ## Security Compliance Validation
 

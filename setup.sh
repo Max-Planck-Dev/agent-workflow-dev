@@ -109,10 +109,27 @@ fi
 
 cd "$TARGET"
 
+# A project root that is not itself a repository is a legitimate shape: the
+# components underneath it can carry the repositories. Only prompt when
+# nothing anywhere is version controlled.
+COMPONENT_REPOS=()
+for d in */; do
+  [ -d "${d}.git" ] && COMPONENT_REPOS+=("${d%/}")
+done
+
 if [ ! -d ".git" ]; then
-  warn "Not a git repository. The agent workflow expects to run inside a git repo."
-  read -rp "Continue anyway? (y/N) " answer
-  [[ "$answer" =~ ^[Yy]$ ]] || exit 0
+  if [ ${#COMPONENT_REPOS[@]} -gt 0 ]; then
+    warn "Project root is not a git repository, but ${#COMPONENT_REPOS[@]} component repositories were found (${COMPONENT_REPOS[*]}) — this is supported."
+  else
+    warn "Not a git repository, and no component repositories found underneath."
+    warn "The agent workflow expects version-controlled code somewhere in the project."
+    if [ -t 0 ]; then
+      read -rp "Continue anyway? (y/N) " answer
+      [[ "$answer" =~ ^[Yy]$ ]] || exit 0
+    else
+      warn "Non-interactive install — continuing anyway."
+    fi
+  fi
 fi
 
 # ── Detect brownfield project (existing code, no founding docs) ──
@@ -120,14 +137,40 @@ fi
 # A project with source code but no docs/prd.md needs the adopt skill first:
 # the founding docs must describe what exists before the phase skills can
 # judge code against them.
+# Components may be the project root itself or any of its direct children, so
+# the scan is depth-1. It never recurses: a nested project's own sub-folders
+# are not components of this one.
+MANIFESTS="package.json pyproject.toml Cargo.toml go.mod pom.xml build.gradle Gemfile composer.json mix.exs"
+SKIP_DIRS="docs logs node_modules dist build out target vendor coverage tmp"
+
+has_manifest() {
+  local dir="$1" cfg
+  for cfg in $MANIFESTS; do
+    [ -f "$dir/$cfg" ] && return 0
+  done
+  # Terraform, Helm and Compose roots count too
+  compgen -G "$dir"/*.tf >/dev/null 2>&1 && return 0
+  [ -f "$dir/Chart.yaml" ] && return 0
+  [ -f "$dir/docker-compose.yml" ] && return 0
+  return 1
+}
+
 BROWNFIELD=0
+COMPONENTS=()
 if [ ! -f "docs/prd.md" ]; then
-  for cfg in package.json pyproject.toml Cargo.toml go.mod pom.xml build.gradle Gemfile composer.json mix.exs; do
-    if [ -f "$cfg" ]; then
+  has_manifest "." && { BROWNFIELD=1; COMPONENTS+=("."); }
+
+  for d in */; do
+    name="${d%/}"
+    case " $SKIP_DIRS " in *" $name "*) continue ;; esac
+    case "$name" in .*) continue ;; esac
+    if has_manifest "$name"; then
       BROWNFIELD=1
-      break
+      COMPONENTS+=("$name")
     fi
   done
+
+  # Secondary signal for a single-folder project with no manifest at all.
   if [ "$BROWNFIELD" -eq 0 ]; then
     for dir in src app lib frontend backend; do
       if [ -d "$dir" ]; then
@@ -365,6 +408,21 @@ if [ "$added" -eq 1 ]; then
   ok "Updated .gitignore (logs + Terraform state)"
 fi
 
+# The root .gitignore is inert when the root is not a repository. Say so
+# rather than silently editing other repositories' ignore files.
+if [ ! -d ".git" ] && [ ${#COMPONENT_REPOS[@]} -gt 0 ]; then
+  warn "Project root is not a git repository, so its .gitignore is not enforced."
+  warn "  Terraform state holds plaintext secrets — add these to the .gitignore of"
+  warn "  whichever component repository holds your infrastructure code:"
+  warn "    *.tfstate  *.tfstate.*  .terraform/  *.tfvars  !*.tfvars.example"
+fi
+
+# Two CLAUDE.md files is intentional and additive, but surprising if unannounced.
+if [ -f "CLAUDE.md" ]; then
+  warn "Existing CLAUDE.md found at the project root — left untouched."
+  warn "  Workflow conventions were installed separately at .claude/CLAUDE.md. Both are read."
+fi
+
 # ── Done ─────────────────────────────────────────────────
 
 echo ""
@@ -389,6 +447,10 @@ if [ "$BROWNFIELD" -eq 1 ]; then
   warn "Existing project detected without founding docs (no docs/prd.md)."
   warn "The workflow needs docs that describe what already exists before any"
   warn "phase can run honestly."
+  if [ ${#COMPONENTS[@]} -gt 0 ]; then
+    warn "Candidate components: ${COMPONENTS[*]}"
+    warn "  /${PREFIX}-adopt proposes which of these are in scope and asks you to confirm."
+  fi
   echo ""
   info "To get started, open Claude Code and run: /${PREFIX}-adopt"
 else

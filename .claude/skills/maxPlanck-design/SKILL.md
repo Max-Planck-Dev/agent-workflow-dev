@@ -27,10 +27,11 @@ When invoked by `/maxPlanck-adopt` (the arguments contain a codebase scan summar
 
 ## Architecture Must Include
 
-- **Tech stack decision:** Resolve using detection/preference/default process (see Architect agent rules)
-- **Build & run commands:** Exact commands adapted to the chosen stack for installing, building, running, and testing
+- **Components:** The `## Components` table (ID, path, kind, git repo, CI workflow, stack) and `### Excluded Paths`, discovered per the Architect's Component Discovery procedure. A single-folder project has exactly one row. Confirm the in/out split with the user before writing it — never classify silently
+- **Tech stack decision:** Resolve per component using detection/preference/default process (see Architect agent rules)
+- **Build & run commands:** Exact commands per component, as `###` subsections, for installing, building, running, and testing — recording the exact installer each component uses
 - **Scaffolding commands:** Exact commands to initialize projects, adapted to the chosen stack
-- **Folder structure:** Full tree for all source directories
+- **Folder structure:** Full tree per component, organized under the component paths
 - **Data models:** Model/interface/struct definitions in the chosen language for all entities
 - **API endpoints:** Complete REST API table with methods, paths, request/response shapes
 - **Component hierarchy:** UI component tree using the chosen frontend framework's terminology

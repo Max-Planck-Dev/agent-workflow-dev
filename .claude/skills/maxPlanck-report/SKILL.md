@@ -32,10 +32,12 @@ Find the most recent prior dated folder in `docs/reports/` (sort directory names
 
 The scope of work to include:
 
-1. **All STAGED files in the working tree.** Run `git diff --cached --name-only` and `git diff --cached --stat`.
-2. **All commits in the current branch that are not in the main branch** (typically `main`; check with `git rev-parse --abbrev-ref origin/HEAD` if unsure). Run `git log --oneline main..HEAD` and `git diff main..HEAD --stat`.
-   - **Single-branch fallback:** if that range is empty (work is committed straight to the main branch), use `git log --oneline --since="<PRIOR_REPORT_DATE>"` instead. With no prior report at all, treat the whole history as in scope.
-3. **All work surfaced on disk but not yet committed.** Check `git status` for modified (` M`) and untracked (`??`) entries.
+**Build the repo set first** from the `Git repo` column of the `## Components` table in `docs/architecture.md` (dedupe; skip `(none)` rows). If `docs/architecture.md` has no `## Components` section, the repo set is the project root alone. Guard each path with `git -C <path> rev-parse --is-inside-work-tree >/dev/null 2>&1 || continue` — a path that is not a git repository is skipped silently, and an empty repo set means the scope comes from `docs/` artifacts and the working tree alone. Run steps 1-3 **per repository**, and label every finding with its component ID so the internal report can say what shipped where.
+
+1. **All STAGED files in the working tree.** Run `git -C <path> diff --cached --name-only` and `git -C <path> diff --cached --stat`.
+2. **All commits in the current branch that are not in that repo's default branch.** Resolve the default branch per repository — they will differ across components — with `git -C <path> rev-parse --abbrev-ref origin/HEAD` (fall back to `main`, then `master`). Run `git -C <path> log --oneline <default>..HEAD` and `git -C <path> diff <default>..HEAD --stat`.
+   - **Single-branch fallback:** if that range is empty (work is committed straight to the default branch), use `git -C <path> log --oneline -n 50 --since="<PRIOR_REPORT_DATE>"` instead. With no prior report at all, cap at `-n 50` rather than reading the whole history.
+3. **All work surfaced on disk but not yet committed.** Check `git -C <path> status` for modified (` M`) and untracked (`??`) entries.
 4. **Sprint artifacts newer than the prior report** — sprint folders under `docs/sprints/` whose summaries postdate `PRIOR_REPORT_DATE` tell you which sprints this release contains; their test plans and reviews feed the QA checklist.
 
 In short: **everything that materially changed for this release**, whether staged, committed, or on disk.

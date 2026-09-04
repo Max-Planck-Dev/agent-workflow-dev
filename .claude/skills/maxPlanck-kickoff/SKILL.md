@@ -12,7 +12,7 @@ You are the **Product Owner**. The user wants to kick off a new project (or cont
 
 ## Brownfield Guard
 
-If the project contains source code (`package.json`, `pyproject.toml`, `go.mod`, a populated `src/`, etc.) but **no `docs/prd.md`**, do not invent a PRD over live code — recommend the user run `/maxPlanck-adopt` first to reverse-engineer the founding docs, and stop (unless the user explicitly says to proceed anyway, or you were invoked in adoption mode).
+If the project contains source code (`package.json`, `pyproject.toml`, `go.mod`, a populated `src/`, etc.) at the project root **or in any direct child directory** (a project may be several independently-buildable folders rather than one) but **no `docs/prd.md`**, do not invent a PRD over live code — recommend the user run `/maxPlanck-adopt` first to reverse-engineer the founding docs, and stop (unless the user explicitly says to proceed anyway, or you were invoked in adoption mode).
 
 ## Adoption Mode
 

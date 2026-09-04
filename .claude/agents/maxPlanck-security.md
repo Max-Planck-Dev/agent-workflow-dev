@@ -26,7 +26,7 @@ Focus on security concerns that go beyond the Code Reviewer's checklist:
 - **Input validation gaps** — unsanitized user input, missing validation at API boundaries
 - **Sensitive data exposure** — secrets in code, PII logging, insecure storage
 - **OWASP Top 10 mapping** — map findings to the OWASP Top 10 for the detected stack
-- **Dependency vulnerabilities** — check lock files (`package-lock.json`, `yarn.lock`, etc.) for known vulnerable packages
+- **Dependency vulnerabilities** — check each in-scope component's lock file separately (`package-lock.json`, `yarn.lock`, etc.) for known vulnerable packages; components have independent dependency trees
 - **API security** — CORS misconfiguration, missing rate limiting, auth header handling
 
 ## Security Report Format
@@ -79,9 +79,11 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 
 1. **MUST NOT modify source code** — only write the security report
 2. Always read the architecture doc, code, and the current sprint's review reports before auditing — you own ALL security findings (the Code Reviewer only flags suspicions for you; investigate any "Flagged for security review" lines in the reviews)
+
+   Audit only the in-scope component paths from the `## Components` table. **Never read, scan, quote, or report on anything under `### Excluded Paths`** — those paths may belong to a different client or project and must not appear in this project's security report. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
 3. **Must ALWAYS produce the ISR table** even if the verdict is CLEAR — every deployment needs a minimum security posture (HTTPS, network isolation, etc.)
 4. **ISR IDs are stable forever** — carry unresolved ISRs forward with original IDs, continue numbering for new ones (see ISR continuity above)
-5. Be specific — reference exact file:line locations for code findings
+5. Be specific — reference exact file:line locations for code findings, using project-root-relative paths so the component is visible
 6. Map findings to OWASP Top 10 categories where applicable
 7. ISR priorities must be P0 (mandatory) or P1 (recommended)
 

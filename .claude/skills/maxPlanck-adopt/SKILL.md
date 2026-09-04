@@ -20,19 +20,41 @@ Log the start:
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Adoption started" >> logs/agent-workflow.log
 ```
 
-Build a factual picture before invoking any agent:
+### 1a. Discover the components
+
+A project may be one folder or several independently-buildable folders, each possibly its own git repository. Establish that first — everything else is recorded per component.
+
+1. **Candidates are the direct children of the project root only.** Do not recurse. Depth-1 is the whole rule that stops a nested project's own sub-folders from being mistaken for this product's components.
+2. **Skip entirely:** `.git`, `.claude`, `.github`, `.vscode`, `.idea`, `docs`, `logs`, `node_modules`, `dist`, `build`, `out`, `target`, `vendor`, `coverage`, `tmp`, `.next`, `.venv`, `__pycache__`, and any other dot-directory.
+3. **A candidate qualifies** if it contains, at its own top level, one of: `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle`, `Gemfile`, `composer.json`, `mix.exs`, `*.tf`, `Chart.yaml`, `docker-compose.yml`. If the project root itself contains one, the root is a component with path `.`.
+4. **For each candidate record:** path, manifest type, framework, available scripts/targets, and its git remote (`git -C <path> remote get-url origin` — empty is fine).
+5. **Flag likely exclusions, do not decide.** Mark a candidate as a probable exclusion when any hold: it contains two or more nested manifests of its own; its git remote does not share the naming family of the other candidates; nothing in the existing docs or READMEs refers to it.
+
+### 1b. Gather the facts, per component
 
 - **Stack** — config files (`package.json`, `pyproject.toml`, `go.mod`, `Cargo.toml`, …), lock files, frameworks, language versions
-- **Structure** — source directories, entry points, module layout
+- **Structure** — the component's source directories, entry points, module layout
 - **Features** — what the product visibly does: routes/pages/screens, API endpoints, CLI commands, background jobs
 - **Data** — models/schemas/migrations, storage engines
 - **Quality signals** — test files and whether they pass, linters, type checking
-- **Operations** — Dockerfiles, CI workflows, existing `infra/`, deploy scripts
+- **Operations** — each component's CI workflows, any component of Kind `infra`, deploy scripts. Note whether the infrastructure uses a remote backend and/or workspaces — that determines what DevOps may safely touch later
 - **Existing docs** — README, wikis, comments worth trusting (verify against code; code wins)
 
-Also run the build and test commands you find, so the architecture doc records commands that are **verified to work**, and note the current commit (`git rev-parse --short HEAD`).
+Also run each component's build and test commands **from its own directory**, so the architecture doc records commands that are **verified to work**. Record the *exact* installer each component uses — `npm ci` and `npm install` are not interchangeable, and substituting one can rewrite a lock file in a live repository.
+
+Note the current commit **per component repository**, guarding each one:
+
+```bash
+git -C <path> rev-parse --is-inside-work-tree >/dev/null 2>&1 && git -C <path> rev-parse --short HEAD
+```
+
+The project root itself need not be a git repository — that is normal for a multi-component project.
+
+**`docs/` may already contain unrelated files.** Never modify or delete anything already in `docs/`; the workflow's artifacts are added alongside them.
 
 Summarize the scan in a few paragraphs in conversation (the user may correct you — their corrections are input to the next steps). If anything essential is undiscoverable from the code (who the product is for, why it exists), ask the user now — this is the one point where questions are allowed.
+
+**Confirming scope is mandatory, not optional.** Present the candidate components with a proposed in/out call and the reason for each, and require the user's confirmation before proceeding. Do not classify silently: no heuristic can reliably separate a sibling that shares a naming family but is not part of the product, so inference produces a *proposal* and the human produces the *answer*. The confirmed split is recorded in `## Components` and `### Excluded Paths` in Step 3, and is never re-asked on later runs.
 
 ## Step 2 — Product Owner writes the as-built PRD
 
@@ -47,13 +69,14 @@ Invoke `maxPlanck-kickoff` in **adoption mode**, passing your scan summary and a
 
 Invoke `maxPlanck-design` in **adoption mode**, passing the scan summary. In adoption mode the Architect:
 
-- Documents the architecture **as it is**, not as it should be: real folder structure, actual data models, actual API endpoints, the build/run/test commands verified in Step 1
+- Writes the confirmed scope into `## Components` and `### Excluded Paths`, with a one-line reason for each exclusion
+- Documents the architecture **as it is**, not as it should be: real folder structure, actual data models, actual API endpoints, and the per-component build/run/test commands verified in Step 1
 - Adds a **`## Known Deviations & Debt`** section for things a fresh design would have done differently (missing tests, tangled modules, hardcoded config) — factual, not judgmental; these feed future proposals
 - Adds the Change Log entry for the adoption
 
 ## Step 4 — Baseline sprint record
 
-Invoke `maxPlanck-sprint`, noting this is the **adoption baseline**. The Scrum Master's sprint-01 summary records: adopted at commit `<hash>`, capability count, test status, and — as Recommendations — the most pressing items from Known Deviations & Debt (candidates for `/maxPlanck-change` or new stories).
+Invoke `maxPlanck-sprint`, noting this is the **adoption baseline**. The Scrum Master's sprint-01 summary records: adopted at each component's commit `<hash>` (omitted when nothing in scope is a git repository), capability count, test status, and — as Recommendations — the most pressing items from Known Deviations & Debt (candidates for `/maxPlanck-change` or new stories).
 
 ## After Completion
 

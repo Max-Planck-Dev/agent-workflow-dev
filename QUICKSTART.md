@@ -8,6 +8,8 @@ Joining a codebase that wasn't started with this workflow? Run `/maxPlanck-adopt
 - `docs/architecture.md` as-built, with verified build/run commands and a **Known Deviations & Debt** section
 - An adoption-baseline sprint-01 summary recording the starting point
 
+If your project root holds several independently-buildable parts — and possibly several git repositories — `/maxPlanck-adopt` scans one level down, proposes which are in scope, and asks you to confirm before recording them in the architecture doc's `## Components` table. Anything you exclude is recorded too, under `### Excluded Paths`, so it is never re-proposed and never read by an agent.
+
 Existing features do not get retroactive stories — story numbering starts with your first new piece of work, via `/maxPlanck-kickoff` or `/maxPlanck-change`. From then on the normal loop applies.
 
 ## Starting a New Project
@@ -31,7 +33,7 @@ Existing features do not get retroactive stories — story numbering starts with
    → Security report in `docs/sprints/sprint-NN/security-report.md`
 
 7. Run `/maxPlanck-infra` — DevOps Engineer creates infrastructure and CI/CD pipeline
-   → Terraform in `infra/`, CI/CD in `.github/workflows/`, deployment doc in `docs/devops/`
+   → Terraform in the infra component's path, CI/CD in each component's workflow (both per the architecture doc's Components table), deployment doc in `docs/devops/`
 
 8. Run `/maxPlanck-test` — QA writes and runs tests
    → Test results in `docs/sprints/sprint-NN/test-plans/`
@@ -76,6 +78,7 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
 - The tech stack is determined by the Architect — specify preferences in your project description or let it auto-detect
 - To change the default tech stack, edit `.claude/maxPlanck-default-stack.md`
 - To change the default infrastructure stack, edit the IaC section in `.claude/maxPlanck-default-stack.md`
+- To change what the workflow considers part of your product, edit the `## Components` and `### Excluded Paths` tables in `docs/architecture.md`
 
 ## Keeping the Workflow Up to Date
 

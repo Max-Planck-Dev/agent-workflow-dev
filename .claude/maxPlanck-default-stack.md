@@ -3,6 +3,9 @@
 These defaults are used by the Architect agent when no existing project is detected
 and no user preferences are stated in the PRD.
 
+They describe a new **two-component** project (`frontend`, `backend`) plus `infra`. The
+Architect records them as three rows in the `## Components` table of `docs/architecture.md`.
+
 ## Frontend
 - **Framework:** Vite + React
 - **Language:** TypeScript
@@ -42,9 +45,9 @@ and no user preferences are stated in the PRD.
 - CI/CD: GitHub Actions
 
 ## IaC Scaffolding
-- terraform init / fmt / validate / plan / apply (all from infra/)
+- terraform init / fmt / validate / plan / apply (all from the infra component's path)
 
 ## IaC Conventions
-- All Terraform in infra/ at project root
+- Terraform lives in the component whose Kind is `infra` (default path `infra/` for a new project)
 - terraform.tfvars.example for variable templates (never commit real .tfvars)
 - Tag all AWS resources: Project, Environment, ManagedBy=terraform

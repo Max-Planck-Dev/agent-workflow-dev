@@ -12,7 +12,7 @@ This skill deliberately has no `context: fork` / `agent:` binding: it is an **or
 
 ## Sprint Setup (before any phase)
 
-0. **Brownfield check** — if the project contains source code but no `docs/prd.md`, stop and recommend `/maxPlanck-adopt` first: the founding docs must describe what exists before the pipeline can judge code against them.
+0. **Brownfield check** — if the project contains source code at the project root **or in any direct child directory** (a project may be several independently-buildable folders rather than one) but no `docs/prd.md`, stop and recommend `/maxPlanck-adopt` first: the founding docs must describe what exists before the pipeline can judge code against them.
 1. Read `docs/sprints/.current-sprint` (create it containing `01` if missing). If the current sprint folder `docs/sprints/sprint-<NN>/` already contains a `sprint-summary.md`, the prior cycle closed — increment the counter. Call the result `<NN>`; every routing check below refers to `docs/sprints/sprint-<NN>/` only.
 2. Create `docs/sprints/sprint-<NN>/pipeline-state.json` (or resume it if it exists and is unfinished):
 
@@ -49,7 +49,7 @@ After each phase, read the relevant output to decide the next step. **Freshness 
 | `maxPlanck-kickoff` | `docs/prd.md`, `docs/stories/` | If PRD has a sprint-`<NN>` Change Log entry and 3+ stories exist → `maxPlanck-ux`. Otherwise re-run `maxPlanck-kickoff`. |
 | `maxPlanck-ux` | `docs/ux/` | If design files (or this-sprint revisions) exist for P0/P1 stories → `maxPlanck-design`. Otherwise re-run `maxPlanck-ux`. |
 | `maxPlanck-design` | `docs/architecture.md` | If the doc has models + API endpoints and a sprint-`<NN>` Change Log entry → `maxPlanck-develop`. Otherwise re-run `maxPlanck-design`. |
-| `maxPlanck-develop` | Source directories per `docs/architecture.md` | Actually run the build commands from the architecture doc's Build & Run Commands. If code exists and compiles → `maxPlanck-review`. Otherwise re-run `maxPlanck-develop`. |
+| `maxPlanck-develop` | Component paths per the `## Components` table in `docs/architecture.md` | Actually run each changed component's own build command from its own directory. Advance to `maxPlanck-review` only when every changed component builds. Otherwise re-run `maxPlanck-develop`. |
 | `maxPlanck-review` | `docs/sprints/sprint-<NN>/reviews/` | If **APPROVED** → `maxPlanck-audit`. If **NEEDS CHANGES** → `maxPlanck-develop`, telling it which review files to address. |
 | `maxPlanck-audit` | `docs/sprints/sprint-<NN>/security-report.md` | If **CLEAR** or **WARNINGS** → `maxPlanck-infra`. If **CRITICAL FINDINGS** → `maxPlanck-develop`, telling it to fix the report's critical findings. |
 | `maxPlanck-infra` | `docs/devops/deployment.md` | If **READY** → `maxPlanck-test`. If **BLOCKED** → record `"devops: BLOCKED (<deferred P0 ISRs>)"` in `pipeline-state.json` `unresolved`, then advance to `maxPlanck-test` (infra blockers should not stall app QA — but they are never dropped). |

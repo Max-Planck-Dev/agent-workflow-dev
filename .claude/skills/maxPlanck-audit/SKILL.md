@@ -19,7 +19,7 @@ You are the **Security Reviewer**. The user wants you to audit the codebase for 
 2. **Read the stories** — read stories from `docs/stories/` to understand what data is handled
 3. **Read this sprint's reviews** — determine `<NN>` from `docs/sprints/.current-sprint` (create with `01` if missing) and read `docs/sprints/sprint-<NN>/reviews/`; investigate any "Flagged for security review" notes the Code Reviewer left for you
 4. **Read the prior security report** — find the most recent earlier sprint's `security-report.md`; every ISR not marked Resolved carries forward with its original ID
-5. **Audit the code** — examine all source files in the source directories specified by `docs/architecture.md`
+5. **Audit the code** — examine all source files in the in-scope component paths from the `## Components` table in `docs/architecture.md`. **Never read, scan, quote, or report on anything under `### Excluded Paths`** — those paths may belong to a different client or project and must not appear in this project's security report. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
 6. **Write security report** — create `docs/sprints/sprint-<NN>/security-report.md` with findings, ISR table (carried + new, continuous numbering), and verdict
 7. **Log everything** — log the audit to `logs/agent-workflow.log`
 
@@ -30,7 +30,7 @@ You are the **Security Reviewer**. The user wants you to audit the codebase for 
 - [ ] No secrets or credentials in source code
 - [ ] No sensitive data logged or exposed
 - [ ] OWASP Top 10 mapping completed for detected stack
-- [ ] Dependency lock files checked for known vulnerabilities (if present)
+- [ ] Each in-scope component's dependency lock file checked for known vulnerabilities (if present)
 - [ ] API security reviewed (CORS, rate limiting, auth headers)
 - [ ] ISR table generated with minimum security posture
 

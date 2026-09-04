@@ -32,6 +32,19 @@ Every file name, skill name, agent name, and cross-reference is rewritten from `
 
 **Updates still work for rebranded installs** — with one rule: update by re-running the installer with the *same* `--prefix`, and don't hand-edit the installed workflow files (the update overwrites them; customize by forking the source repo instead). The weekly update check knows your prefix and prints the right command. What a rebranded install can't use is the *plugin* route, which ships fixed names.
 
+## Multi-component projects
+
+Your product does not have to be one folder. The Architect scans the project root one level
+down, proposes which folders are part of the product and which are not, and asks you to
+confirm — then records the answer in `docs/architecture.md` as a `## Components` table plus
+an `### Excluded Paths` list. From then on every agent routes through it: builds and tests
+run from each component's own directory with that component's own commands, and anything
+under Excluded Paths is never read, tested, or reported on.
+
+The project root itself does not need to be a git repository — the components can carry the
+repositories, and each one gets its own CI pipeline in its own repo. A single-folder project
+gets a one-row table and behaves exactly as before.
+
 ## Staying up to date
 
 Script installs record their source repo and commit in `.claude/maxPlanck-workflow-version.json`. A `SessionStart` hook checks the source repo at most **once a week** (silently, offline-safe) and, when the installed commit is behind, tells you at the start of your session — with the exact re-install command to run. Updating is just re-running the installer: it overwrites the workflow's own files, cleans up renamed/legacy leftovers, and leaves your project files, your hooks, and your `CLAUDE.md` alone.
@@ -66,6 +79,7 @@ Determined at design time by the **Architect** agent:
 1. Detects existing project stack (scans for `package.json`, `pyproject.toml`, `go.mod`, etc.)
 2. Respects user preferences stated in the PRD
 3. Falls back to defaults defined in `.claude/maxPlanck-default-stack.md`
+4. Records every independently-buildable **component** (path, kind, git repo, CI workflow, stack) in a `## Components` table in `docs/architecture.md`, so a project root holding several separate folders — or several separate repositories — works the same way a single one does
 
 ## Agent Pipeline
 

@@ -36,6 +36,7 @@ Each story file (`docs/stories/story-NNN.md`) must follow this template:
 
 **Priority:** P0 | P1 | P2 | P3
 **Persona:** <Who is this for?>
+**Components:** <comma-separated component IDs from docs/architecture.md — omit this line if unknown or not applicable>
 **Status:** Draft | In Progress | Done
 
 ## Description

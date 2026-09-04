@@ -32,7 +32,7 @@ Run these phases in order, logging a `PIPELINE` transition line between each:
    - If the change modifies an existing story → edit that story AND append a `## History` entry (what changed, when, why)
    - If it is new scope → create a new story (numbering continues)
    - If it affects product scope/vision → update `docs/prd.md` in place + Change Log entry
-2. **Architect** (`maxPlanck-design`) — **only if the change is structural** (new data model, new endpoint, changed folder structure, new dependency). Skip for pure behavior/copy/style fixes. When run, it updates `docs/architecture.md` in place + Change Log entry.
+2. **Architect** (`maxPlanck-design`) — **only if the change is structural** (new data model, new endpoint, changed folder structure, new dependency), or if it adds, removes, moves, or re-scopes a component. Skip for pure behavior/copy/style fixes. When run, it updates `docs/architecture.md` in place + Change Log entry.
 3. **Developer** (`maxPlanck-develop`) — implement the change per the updated docs.
 4. **Code Reviewer** (`maxPlanck-review`) — review the changed code; report to `docs/sprints/sprint-<NN>/reviews/`. If NEEDS CHANGES → back to step 3 (max 2 retries, then record unresolved).
 5. **QA Tester** (`maxPlanck-test`) — test the affected stories; report to `docs/sprints/sprint-<NN>/test-plans/`. If FAIL → back to step 3 (max 2 retries, then record unresolved).
