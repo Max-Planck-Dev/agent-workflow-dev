@@ -26,19 +26,19 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Change req
 
 ## Pipeline
 
-Run these phases in order, logging a `PIPELINE` transition line between each:
+Run these phases in order, logging a `PIPELINE` transition line between each (`Phase <completed> finished → routing to <next> | Reason: <why>`, with `(re-run)` after the phase name on a repeat):
 
 1. **Product Owner** (`maxPlanck-kickoff` context — invoke the skill with the change description): update the affected artifacts, not just the code intent:
    - If the change modifies an existing story → edit that story AND append a `## History` entry (what changed, when, why)
    - If it is new scope → create a new story (numbering continues)
    - If it affects product scope/vision → update `docs/prd.md` in place + Change Log entry
-2. **Architect** (`maxPlanck-design`) — **only if the change is structural** (new data model, new endpoint, changed folder structure, new dependency), or if it adds, removes, moves, or re-scopes a component. Skip for pure behavior/copy/style fixes. When run, it updates `docs/architecture.md` in place + Change Log entry.
+2. **Architect** (`maxPlanck-design`) — **only if the change is structural** (new data model, new endpoint, changed folder structure, new dependency), or if it adds, removes, moves, or re-scopes a component. Skip for pure behavior/copy/style fixes, and say so in the log: `PIPELINE | Agent: orchestrator | Phase design skipped | Reason: <why>`. When run, it updates `docs/architecture.md` in place + Change Log entry.
 3. **Developer** (`maxPlanck-develop`) — implement the change per the updated docs.
-4. **Code Reviewer** (`maxPlanck-review`) — review the changed code; report to `docs/sprints/sprint-<NN>/reviews/`. If NEEDS CHANGES → back to step 3 (max 2 retries, then record unresolved).
+4. **Code Reviewer** (`maxPlanck-review`) — review the changed code; report to `docs/sprints/sprint-<NN>/reviews/`. If NEEDS CHANGES → back to step 3 (max 2 retries, then record unresolved). Log the repeat as `Phase develop (re-run) finished → routing to review`.
 5. **QA Tester** (`maxPlanck-test`) — test the affected stories; report to `docs/sprints/sprint-<NN>/test-plans/`. If FAIL → back to step 3 (max 2 retries, then record unresolved).
 6. **Scrum Master** (`maxPlanck-sprint`) — update the sprint summary and story statuses so the sprint record reflects the change.
 
-Security note: if the change touches auth, input handling, secrets, dependencies, or infrastructure, insert `maxPlanck-audit` between steps 4 and 5. Otherwise skip it.
+Security note: if the change touches auth, input handling, secrets, dependencies, or infrastructure, insert `maxPlanck-audit` between steps 4 and 5. Otherwise skip it and log `PIPELINE | Agent: orchestrator | Phase audit skipped | Reason: <why>`.
 
 ## After Completion
 

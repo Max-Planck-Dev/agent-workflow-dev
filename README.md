@@ -93,8 +93,43 @@ When you decide a feature set is ready to ship, the **Release Manager** (`/maxPl
 
 Every agent handoff is logged to `logs/agent-workflow.log` via two mechanisms:
 
-1. **Lifecycle hooks** — Automatic `START`/`STOP` entries when any subagent runs (`.claude/hooks/log-agent-lifecycle.sh` extracts the agent name from the hook payload)
-2. **Semantic logging** — Agents log their decisions and outputs inline
+1. **Lifecycle hooks** — Automatic `START`/`STOP` entries when any subagent runs (`.claude/hooks/log-agent-lifecycle.sh` extracts the agent name from the hook payload; the same hook records machine-readable events in `logs/pipeline-events.jsonl` for the dashboard)
+2. **Semantic logging** — Agents log their decisions and outputs inline, including `PROGRESS | Agent: … | <n>/<total> | <what>` lines that say how far along they are
+
+## Live dashboard
+
+Orchestrated runs (`/maxPlanck-feeling-lucky`, `/maxPlanck-change`) can take hours. The dashboard turns the log into a live view: a phase bar with re-run counts and routing reasons, the loops taken (review → develop ×2 …), the current agent with its `PROGRESS` and elapsed time, a tool-call heartbeat read from the subagent's own transcript, unresolved items, and the log tail.
+
+**Standalone** (any terminal, from the project root, `q` to quit):
+
+```bash
+python3 .claude/bin/maxPlanck-dashboard.py            # script installs
+python3 /path/to/dev-agent-workflow/bin/pipeline_dashboard.py --cwd .   # plugin installs / this repo
+```
+
+`--once` prints a single frame, `--json` dumps the parsed model.
+
+**Inside [herdr](https://github.com/brianh20/herdr)** this repo is also a herdr plugin. Link it once:
+
+```bash
+herdr plugin link /path/to/dev-agent-workflow
+```
+
+From then on the first workflow agent of a run opens the dashboard as a split pane next to the Claude pane (once per run; it stays open), the run's completion shows a herdr notification, and the Claude pane's sidebar row can show the current phase and agent. The plugin also provides `pipeline: toggle/open/close dashboard` actions (`herdr plugin action invoke toggle --plugin maxplanck.pipeline`).
+
+Optional `~/.config/herdr/config.toml` snippets — a keybinding for the toggle and the sidebar tokens the dashboard publishes:
+
+```toml
+[[keys.command]]
+key = "prefix+shift+p"
+type = "shell"
+command = "herdr plugin action invoke toggle --plugin maxplanck.pipeline"
+
+[ui.sidebar.agents.rows_by_agent]
+claude = [["state_icon", "workspace", "tab"], ["$phase", "$agent"]]
+```
+
+Nothing herdr-specific is copied into projects: the hook opens the pane for whichever project is running, and the pane reads that project's `logs/`.
 
 ## Quick Start
 

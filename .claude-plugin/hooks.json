@@ -1,5 +1,5 @@
 {
-  "description": "Lifecycle logging for the agent workflow: START/STOP lines per subagent into the project's logs/agent-workflow.log. The version-check hook is intentionally absent — plugin installs update through the plugin system.",
+  "description": "Lifecycle logging for the agent workflow: START/STOP lines per subagent into the project's logs/agent-workflow.log, plus machine events in logs/pipeline-events.jsonl for the pipeline dashboard (which opens itself as a herdr pane when Claude runs inside herdr). The version-check hook is intentionally absent — plugin installs update through the plugin system.",
   "hooks": {
     "SubagentStart": [
       {

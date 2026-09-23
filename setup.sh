@@ -27,14 +27,20 @@ set -euo pipefail
 #
 # What it does:
 #   1. Copies prefixed agent and skill files into .claude/
-#   2. Copies shared config: <prefix>-default-stack.md, hooks/, and
-#      CLAUDE.md (only if absent)
+#   2. Copies shared config: <prefix>-default-stack.md, hooks/, the
+#      pipeline dashboard (.claude/bin/), and CLAUDE.md (only if absent)
 #   3. Merges lifecycle + update-check hooks into existing settings.json
 #      (and removes the legacy broken $CLAUDE_AGENT_NAME hooks)
 #   4. Creates docs/ and logs/ directories agents write to
-#   5. Adds log files and Terraform state to .gitignore
+#   5. Adds log files, dashboard state and Terraform state to .gitignore
 #   6. Writes .claude/<prefix>-workflow-version.json (source repo + commit)
 #      so the update check knows what you have
+#
+# Live dashboard: `python3 .claude/bin/<prefix>-dashboard.py` from the
+# project root shows the running pipeline. herdr users link the source repo
+# once (`herdr plugin link /path/to/this/repo`); nothing herdr-specific is
+# copied per project — the hook opens the pane for whichever project is
+# running, and the pane reads that project's logs/.
 #
 # What it does NOT touch:
 #   - Your existing agents, skills, or an existing CLAUDE.md
@@ -251,15 +257,24 @@ ok "Installed skills (${PREFIX}-*)"
 render "$SCRIPT_DIR/.claude/${SRC_PREFIX}-default-stack.md" ".claude/${PREFIX}-default-stack.md"
 ok "Installed ${PREFIX}-default-stack.md"
 
-# Hook scripts — lifecycle logging + weekly update check.
+# Hook scripts — lifecycle logging (+ its python implementation) and the
+# weekly update check.
 mkdir -p .claude/hooks
-for hook_script in "$SCRIPT_DIR"/.claude/hooks/*.sh; do
+for hook_script in "$SCRIPT_DIR"/.claude/hooks/*.sh "$SCRIPT_DIR"/.claude/hooks/*.py; do
   [ -f "$hook_script" ] || continue
   dst=".claude/hooks/$(rebrand "$(basename "$hook_script")")"
   render "$hook_script" "$dst"
   chmod +x "$dst"
 done
 ok "Installed hook scripts"
+
+# Pipeline dashboard — a standalone terminal view of the running pipeline.
+# Installed under .claude/bin/ so it travels with the workflow and updates
+# with it; herdr users get the same script through the linked plugin.
+mkdir -p .claude/bin
+render "$SCRIPT_DIR/bin/pipeline_dashboard.py" ".claude/bin/${PREFIX}-dashboard.py"
+chmod +x ".claude/bin/${PREFIX}-dashboard.py"
+ok "Installed ${PREFIX}-dashboard.py (python3 .claude/bin/${PREFIX}-dashboard.py)"
 
 # Workflow conventions (ownership table, log format, Definition of Done).
 # Never clobber an existing CLAUDE.md — the workflow depends on these
@@ -384,6 +399,8 @@ ok "Created docs/ and logs/ directories"
 # state files contain plaintext secrets and must never be committed.
 gitignore_lines=(
   "logs/*.log"
+  "logs/*.jsonl"
+  "logs/.pipeline/"
   "*.tfstate"
   "*.tfstate.*"
   ".terraform/"
@@ -442,6 +459,10 @@ echo "  /${PREFIX}-feeling-lucky  — Runs the entire pipeline automatically"
 echo "  /${PREFIX}-adopt          — Adopts an existing codebase (reverse-engineers founding docs)"
 echo "  /${PREFIX}-change         — Runs a change request through the team (docs stay in sync)"
 echo "  /${PREFIX}-report         — Generates the 4-report release pack (internal / client / release note / QA)"
+echo ""
+echo "  Watch a run live:  python3 .claude/bin/${PREFIX}-dashboard.py   (q to quit)"
+echo "  Inside herdr the dashboard opens itself as a side pane once the"
+echo "  workflow repo is linked: herdr plugin link $SCRIPT_DIR"
 echo ""
 if [ "$BROWNFIELD" -eq 1 ]; then
   warn "Existing project detected without founding docs (no docs/prd.md)."

@@ -1,0 +1,37 @@
+id = "maxplanck.pipeline"
+name = "maxPlanck pipeline dashboard"
+version = "0.1.0"
+# Needs plugin panes, pane list/get/rename/close, notification show and
+# pane report-metadata, all present in 0.7.4.
+min_herdr_version = "0.7.4"
+platforms = ["macos", "linux"]
+description = "Live progress of a maxPlanck agent-workflow run (phases, loops, current agent) in a side pane."
+
+# The dashboard is a dependency-free python3 script, so there is no build step.
+# Install once from the workflow repo: `herdr plugin link /path/to/dev-agent-workflow`.
+# The pane reads whichever project it was opened for (--cwd), so nothing is
+# copied into individual projects.
+
+[[panes]]
+id = "dashboard"
+title = "pipeline dashboard"
+placement = "split"
+command = ["sh", "-c", "exec python3 \"$HERDR_PLUGIN_ROOT/bin/pipeline_dashboard.py\""]
+
+[[actions]]
+id = "toggle"
+title = "pipeline: toggle dashboard"
+contexts = ["pane", "workspace"]
+command = ["bash", "herdr/dashboard.sh", "toggle"]
+
+[[actions]]
+id = "open"
+title = "pipeline: open dashboard"
+contexts = ["pane", "workspace"]
+command = ["bash", "herdr/dashboard.sh", "open"]
+
+[[actions]]
+id = "close"
+title = "pipeline: close dashboard"
+contexts = ["pane", "workspace"]
+command = ["bash", "herdr/dashboard.sh", "close"]

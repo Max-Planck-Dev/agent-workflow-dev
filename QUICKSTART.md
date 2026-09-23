@@ -66,6 +66,7 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
 
 ## Checking Progress
 
+- Watch a run live: `python3 .claude/bin/maxPlanck-dashboard.py` (phase bar, loops, current agent, `q` to quit). Inside herdr it opens itself as a side pane — see "Live dashboard" in the README.
 - View the full agent chain: `cat logs/agent-workflow.log`
 - Run `/maxPlanck-sprint` for a Scrum Master summary
 - Check any phase's output in `docs/`

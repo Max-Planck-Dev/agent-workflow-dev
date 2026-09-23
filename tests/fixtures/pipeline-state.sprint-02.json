@@ -1,0 +1,7 @@
+{
+  "sprint": "02",
+  "started": "2026-09-20 09:00:00",
+  "phase_runs": { "kickoff": 1, "ux": 1, "design": 1, "develop": 2, "review": 2, "security": 1, "devops": 1, "test": 1, "sprint": 1 },
+  "verdicts": { "review": "APPROVED", "security": "WARNINGS", "devops": "BLOCKED", "test": "PASS" },
+  "unresolved": ["devops: BLOCKED (ISR-004)"]
+}

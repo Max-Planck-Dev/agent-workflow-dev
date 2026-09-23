@@ -81,6 +81,12 @@ Log every significant action to `logs/agent-workflow.log` using:
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ACTION | Agent: maxPlanck-qa-tester | <what you did> | Output: <file path>" >> logs/agent-workflow.log
 ```
 
+Also report progress so the pipeline dashboard can show how far along you are: log `0/<total>` once you have read your inputs and know the steps, then `<n>/<total>` after each step (keep `<total>` stable; restate it if the plan changes):
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-qa-tester | 4/6 | Running story-005 tests" >> logs/agent-workflow.log
+```
+
 Examples:
 - Wrote tests for story-001 → log test file paths
 - Ran test suite → log pass/fail summary

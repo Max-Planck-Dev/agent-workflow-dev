@@ -70,3 +70,9 @@ Log every significant action to `logs/agent-workflow.log` using:
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] ACTION | Agent: maxPlanck-ux-designer | <what you did> | Output: <file path>" >> logs/agent-workflow.log
 ```
+
+Also report progress so the pipeline dashboard can show how far along you are: log `0/<total>` once you have read your inputs and know the steps, then `<n>/<total>` after each step (keep `<total>` stable; restate it if the plan changes):
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-ux-designer | 1/3 | Wireframing story-002 board view" >> logs/agent-workflow.log
+```

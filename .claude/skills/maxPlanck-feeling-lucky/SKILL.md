@@ -58,7 +58,11 @@ After each phase, read the relevant output to decide the next step. **Freshness 
 
 ## Loop Protection
 
-`phase_runs` in `pipeline-state.json` is the counter — persisted, not in-memory. If any phase reaches **3 runs**, force-advance to the next phase in the default order, log a warning, and append the unresolved failure (e.g. `"review: NEEDS CHANGES after 3 attempts"`) to `unresolved`. A force-advance is a recorded failure, not a success.
+`phase_runs` in `pipeline-state.json` is the counter — persisted, not in-memory. If any phase reaches **3 runs**, force-advance to the next phase in the default order, log a warning, and append the unresolved failure (e.g. `"review: NEEDS CHANGES after 3 attempts"`) to `unresolved`. A force-advance is a recorded failure, not a success. Log it as:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Phase <x> force-advanced → routing to <y> | Reason: 3 runs, <what is still failing>" >> logs/agent-workflow.log
+```
 
 ## Between Each Phase
 
@@ -67,6 +71,8 @@ Log the transition:
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Phase <completed> finished → routing to <next> | Reason: <why>" >> logs/agent-workflow.log
 ```
+
+When a phase is being re-run, mark it: `Phase develop (re-run) finished → routing to review`. The pipeline dashboard counts phase runs and loops from these lines.
 
 ## After All Phases Complete
 

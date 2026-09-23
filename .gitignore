@@ -14,3 +14,8 @@ coverage/
 
 .claude/settings.local.json
 .claude/.maxPlanck-last-update-check
+
+# Pipeline dashboard (hook-written machine files)
+logs/*.jsonl
+logs/.pipeline/
+__pycache__/

@@ -1,27 +1,25 @@
 #!/usr/bin/env bash
 # Lifecycle logging hook for the maxPlanck agent workflow.
 #
-# Called from .claude/settings.json on SubagentStart / SubagentStop with the
-# event name as $1. The hook payload arrives as JSON on stdin; the subagent
-# name is in its "agent_type" field (there is no $CLAUDE_AGENT_NAME env var).
+# Called from .claude/settings.json (or the plugin's hooks.json) on
+# SubagentStart / SubagentStop with the event name as $1. The hook payload
+# arrives as JSON on stdin. All the work happens in pipeline-events.py next to
+# this file: it writes the START/STOP line to logs/agent-workflow.log, resolves
+# the agent name on STOP (the payload usually lacks it), records machine
+# events in logs/pipeline-events.jsonl, and opens the herdr dashboard pane
+# when Claude runs inside herdr.
 #
-# Never fails the hook: any parse problem logs "unknown" instead.
+# Never fails the hook: without python3 it falls back to a bare "unknown" line.
 set -u
 
 EVENT="${1:-EVENT}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if command -v python3 >/dev/null 2>&1 && [ -f "$HERE/pipeline-events.py" ]; then
+  exec python3 "$HERE/pipeline-events.py" "$EVENT"
+fi
+
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
-LOG_FILE="$ROOT/logs/agent-workflow.log"
-
 mkdir -p "$ROOT/logs"
-
-AGENT="$(python3 -c '
-import json, sys
-try:
-    d = json.load(sys.stdin)
-    print(d.get("agent_type") or d.get("subagent_type") or "unknown")
-except Exception:
-    print("unknown")
-' 2>/dev/null || echo unknown)"
-
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] $EVENT | Agent: $AGENT" >> "$LOG_FILE"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] $EVENT | Agent: unknown" >> "$ROOT/logs/agent-workflow.log"
 exit 0
