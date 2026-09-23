@@ -9,7 +9,7 @@ A demonstration of Claude Code's multi-agent capabilities using Agile role-based
 From your project root:
 
 ```
-git clone git@github.com:Max-Planck-Dev/agent-workflow-dev.git /tmp/agent-workflow && bash /tmp/agent-workflow/setup.sh . && rm -rf /tmp/agent-workflow
+git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git /tmp/agent-workflow && bash /tmp/agent-workflow/setup.sh . && rm -rf /tmp/agent-workflow
 ```
 
 The installer copies the agents, skills, hooks, and shared config into your project's `.claude/`, merges the logging hooks into your `settings.json` without touching your own hooks, and records what it installed in `.claude/maxPlanck-workflow-version.json`.
