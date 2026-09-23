@@ -10,9 +10,9 @@ set -euo pipefail
 #
 # Usage (from your project root):
 #
-#   git clone git@github.com:Max-Planck-Dev/agent-workflow-dev.git /tmp/agent-workflow \
-#     && bash /tmp/agent-workflow/setup.sh . \
-#     && rm -rf /tmp/agent-workflow
+#   d=$(mktemp -d) \
+#     && git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git "$d" \
+#     && bash "$d/setup.sh" .; rm -rf "$d"
 #
 # Options:
 #   --prefix <name>   Rebrand the agent team: every "maxPlanck" in file

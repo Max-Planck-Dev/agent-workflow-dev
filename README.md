@@ -9,7 +9,7 @@ A demonstration of Claude Code's multi-agent capabilities using Agile role-based
 From your project root:
 
 ```
-git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git /tmp/agent-workflow && bash /tmp/agent-workflow/setup.sh . && rm -rf /tmp/agent-workflow
+d=$(mktemp -d) && git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git "$d" && bash "$d/setup.sh" .; rm -rf "$d"
 ```
 
 The installer copies the agents, skills, hooks, and shared config into your project's `.claude/`, merges the logging hooks into your `settings.json` without touching your own hooks, and records what it installed in `.claude/maxPlanck-workflow-version.json`.
@@ -25,7 +25,7 @@ Note: plugin-installed skills are invoked with the plugin namespace (`/maxplanck
 This is an open project — you can install the whole team under **your** name:
 
 ```
-bash /tmp/agent-workflow/setup.sh . --prefix acme
+d=$(mktemp -d) && git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git "$d" && bash "$d/setup.sh" . --prefix acme; rm -rf "$d"
 ```
 
 Every file name, skill name, agent name, and cross-reference is rewritten from `maxPlanck` to your prefix: you get `/acme-kickoff`, `/acme-feeling-lucky`, `.claude/acme-default-stack.md`, and so on. Brand the reports too via `.claude/<prefix>-brand.json`.

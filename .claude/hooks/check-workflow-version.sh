@@ -45,6 +45,6 @@ if [ "$REMOTE_SHA" != "$LOCAL_SHA" ]; then
   # Claude can relay this to the user.
   echo "[$PFX workflow] The installed agent workflow (commit ${LOCAL_SHA:0:7}) is behind its source repo (${REMOTE_SHA:0:7})."
   echo "Update by re-running the installer from the project root:"
-  echo "  git clone $SRC_URL /tmp/agent-workflow && bash /tmp/agent-workflow/setup.sh . --prefix $PFX && rm -rf /tmp/agent-workflow"
+  echo "  d=\$(mktemp -d) && git clone $SRC_URL \"\$d\" && bash \"\$d/setup.sh\" . --prefix $PFX; rm -rf \"\$d\""
 fi
 exit 0
