@@ -28,6 +28,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import textwrap
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -723,6 +724,21 @@ def render_segments(segs: List[Seg], width: int, color: bool) -> str:
     return "".join(out)
 
 
+def wrapped(prefix: List[Seg], text: str, color: Optional[str], width: int) -> List[List[Seg]]:
+    """Segment lines for `prefix + text`, wrapping the text under a hanging indent.
+
+    Long reasons and unresolved items carry the information the dashboard
+    exists for, so they are wrapped rather than cut off with an ellipsis.
+    """
+    indent = sum(len(t) for t, _ in prefix)
+    avail = max(8, width - indent)
+    pieces = textwrap.wrap(text, width=avail, break_long_words=True, break_on_hyphens=False) or [""]
+    out = [prefix + [(pieces[0], color)]]
+    for piece in pieces[1:]:
+        out.append([(" " * indent, None), (piece, color)])
+    return out
+
+
 def bar(n: int, total: int, width: int) -> str:
     width = max(4, width)
     total = max(total, 1)
@@ -753,8 +769,8 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
     if run.started_ts:
         sub = f"started {fmt_clock(run.started_ts)}"
         if run.description:
-            sub += f" · {run.description}"
-        lines.append([(sub, "dim")])
+            sub += " · "
+        lines.extend(wrapped([(sub, "dim")], run.description or "", "dim", width))
     elif run.state == "idle":
         lines.append([("no pipeline run in this log", "dim")])
     if run.state == "stale" and run.last_line_ts:
@@ -764,16 +780,16 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
     # Phase bar
     if run.order:
         lines = []
-        if width >= 90:
-            segs: List[Seg] = []
-            for name in run.order:
-                ps = run.phases[name]
-                label = f"{name} {STATUS_GLYPH[ps.status]}"
-                if ps.runs > 1 or (ps.status == "running" and ps.runs >= 1):
-                    label += f" r{ps.runs + (1 if ps.status == 'running' else 0)}"
-                segs.append((label, STATUS_COLOR[ps.status]))
-                segs.append(("  ", None))
-            lines.append(segs)
+        wide: List[Seg] = []
+        for name in run.order:
+            ps = run.phases[name]
+            label = f"{name} {STATUS_GLYPH[ps.status]}"
+            if ps.runs > 1 or (ps.status == "running" and ps.runs >= 1):
+                label += f" r{ps.runs + (1 if ps.status == 'running' else 0)}"
+            wide.append((label, STATUS_COLOR[ps.status]))
+            wide.append(("  ", None))
+        if sum(len(t) for t, _ in wide) <= width:
+            lines.append(wide)
             active = run.current_phase()
             if active and run.phases[active].status == "running" and run.phases[active].started:
                 lines.append([(f"  {active}: {fmt_dur(now - run.phases[active].started)}", "dim")])
@@ -798,7 +814,7 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
         # Reason under the last finished phase
         last = run.transitions[-1] if run.transitions else None
         if last and last.reason:
-            lines.append([("  ↳ ", "dim"), (last.reason, "dim")])
+            lines.extend(wrapped([("  ↳ ", "dim")], last.reason, "dim", width))
         sections.append(("phases", lines))
 
     # Current agent
@@ -810,7 +826,7 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
         if sess.progress:
             n, total, text = sess.progress
             bw = min(20, max(4, width - 12))
-            lines.append([(bar(n, total, bw), "cyan"), (f" {n}/{total} ", "bold"), (text, None)])
+            lines.extend(wrapped([(bar(n, total, bw), "cyan"), (f" {n}/{total} ", "bold")], text, None, width))
         else:
             lines.append([("no PROGRESS reported yet", "dim")])
         if heartbeat and heartbeat.get("path"):
@@ -821,7 +837,7 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
                 hb += f" {fmt_dur(now - heartbeat['last_ts'])} ago"
             lines.append([(hb, "dim")])
         for ts, action, text in sess.events[-3:]:
-            lines.append([("▸ ", "dim"), (f"{action} ", "magenta"), (text, None)])
+            lines.extend(wrapped([("▸ ", "dim"), (f"{action} ", "magenta")], text, None, width))
     elif run.state in ("running", "stale"):
         lines.append([("waiting for next agent…", "dim")])
     if lines:
@@ -835,7 +851,7 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
         lines = [[("loops", "bold")]]
         for (src, dst), trs in counts.items():
             reason = trs[-1].reason or ""
-            lines.append([(f"{src} → {dst} ×{len(trs)}  ", "red"), (reason, "dim")])
+            lines.extend(wrapped([(f"{src} → {dst} ×{len(trs)}  ", "red")], reason, "dim", width))
         sections.append(("loops", lines))
 
     # Unresolved
@@ -843,7 +859,7 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
     if unresolved:
         lines = [[(f"unresolved ({len(unresolved)})", "red")]]
         for item in unresolved:
-            lines.append([("• ", "red"), (str(item), None)])
+            lines.extend(wrapped([("• ", "red")], str(item), None, width))
         sections.append(("unresolved", lines))
 
     # Tail
@@ -873,15 +889,32 @@ def render(run: Run, width: int, height: int, color: bool = True, heartbeat: Opt
     def total() -> int:
         return sum(len(blocks[n]) for n in order) + max(0, len(order) - 1)
 
-    # Shrink from the bottom up until it fits.
+    # Trim until it fits, least valuable first: the log tail, the footer,
+    # agent extras, loops. Unresolved items go last and are cut from the end
+    # rather than dropped wholesale, so what remains is still complete lines.
+    def drop(name: str) -> None:
+        if name in blocks:
+            del blocks[name]
+            order.remove(name)
+
     while total() > height and len(blocks.get("tail", [])) > 2:
         blocks["tail"].pop(1)
-    for victim in ("tail", "loops", "unresolved", "footer"):
-        if total() > height and victim in blocks:
-            del blocks[victim]
-            order.remove(victim)
+    if total() > height:
+        drop("tail")
+    if total() > height:
+        drop("footer")
     while total() > height and len(blocks.get("agent", [])) > 2:
         blocks["agent"].pop()
+    if total() > height:
+        drop("loops")
+    while total() > height and len(blocks.get("unresolved", [])) > 1:
+        blocks["unresolved"].pop()
+    if total() > height:
+        drop("unresolved")
+    while total() > height and len(blocks.get("agent", [])) > 0:
+        blocks["agent"].pop()
+    if total() > height:
+        drop("agent")
 
     out: List[str] = []
     for i, name in enumerate(order):

@@ -61,6 +61,33 @@ class RenderTests(unittest.TestCase):
         self.assertIn("review → develop ×1", text)
         self.assertIn("NEEDS CHANGES", text)
 
+    def test_long_texts_wrap_instead_of_truncating(self):
+        reason = "3 of 4 stories PASS; story-141 FAIL is the carried ISR-3/ISR-14 blocker, independently corroborated by QA (32 of 154 e2e specs red)"
+        item = "web/e2e/setup/cleanup.teardown.ts silently skips reclamation when the spec before it has exhausted OWNER's read budget, leaving fixtures behind"
+        run = pd.parse_log([
+            "[2026-09-24 10:59:19] PIPELINE | Agent: orchestrator | Full pipeline started (sprint 27)\n",
+            f"[2026-09-24 14:10:00] PIPELINE | Agent: orchestrator | Phase test finished → routing to sprint | Reason: {reason}\n",
+            "[2026-09-24 14:17:00] PIPELINE | Agent: orchestrator | Pipeline complete (sprint 27) | Unresolved: 1\n",
+        ], "maxPlanck", now=ts("2026-09-24 14:20:00"))
+        run.unresolved = [item]
+        for width in (50, 80):
+            frame = pd.render(run, width, 40, color=False)
+            self.check_invariants(frame, width, 40)
+            body = "\n".join(frame)
+            section = body.split("unresolved (1)")[1].split("\n\n")[0]
+            self.assertNotIn("…", section)
+            self.assertEqual(" ".join(l.strip() for l in section.strip().splitlines()), "• " + item)
+            reason_block = body.split("↳ ")[1].split("\n\n")[0]
+            self.assertEqual(" ".join(l.strip() for l in reason_block.strip().splitlines()), reason)
+
+    def test_unresolved_outranks_tail_when_short(self):
+        run = pd.parse_log(self.lines, "maxPlanck", now=ts("2026-09-21 11:07:00"))
+        run.unresolved = [f"item number {i} with some words" for i in range(4)]
+        frame = pd.render(run, 60, 22, color=False, heartbeat=self.heartbeat)
+        text = "\n".join(frame)
+        self.assertIn("unresolved (4)", text)
+        self.assertNotIn("\nlog\n", text)
+
     def test_tiny_drops_footer_and_tail(self):
         frame = pd.render(self.run, 30, 10, color=False, heartbeat=self.heartbeat)
         text = "\n".join(frame)
