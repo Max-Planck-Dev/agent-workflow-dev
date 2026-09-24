@@ -46,18 +46,57 @@ class RenderTests(unittest.TestCase):
         self.assertIn("unresolved (1)", text)
         self.assertIn("q quit", text)
 
-    def test_required_content_wide(self):
-        frame = pd.render(self.run, 120, 50, color=False, heartbeat=self.heartbeat)
-        text = "\n".join(frame)
-        self.assertIn("kickoff ✓", text)
-        self.assertIn("develop ▶", text)
-        self.assertIn("design –", text)
+    def test_vertical_flow_at_any_width(self):
+        for width in (60, 120):
+            frame = pd.render(self.run, width, 50, color=False, heartbeat=self.heartbeat)
+            text = "\n".join(frame)
+            self.assertIn("✓ kickoff", text)
+            self.assertIn("▶ develop", text)
+            self.assertIn("– design", text)
+            self.assertNotIn("kickoff ✓  design", text)  # no horizontal bar
+
+    def test_each_finished_phase_shows_its_reason(self):
+        run = pd.parse_log(upto(self.lines, "Pipeline complete (sprint 02)"), "maxPlanck", now=ts("2026-09-20 10:00:00"))
+        text = "\n".join(pd.render(run, 100, 60, color=False))
+        self.assertIn("↳ PRD updated, 3 stories", text)
+        self.assertIn("↳ 2 critical fixes applied", text)  # develop's latest run
+        self.assertIn("↳ 40/40 tests pass", text)
+        # Reason for the skipped design phase in the change run shows too.
+        text = "\n".join(pd.render(self.run, 100, 60, color=False))
+        self.assertIn("↳ behaviour-only change", text)
+
+    def test_compact_phases_when_short(self):
+        run = pd.parse_log(upto(self.lines, "Pipeline complete (sprint 02)"), "maxPlanck", now=ts("2026-09-20 10:00:00"))
+        text = "\n".join(pd.render(run, 100, 18, color=False))
+        self.assertIn("✓ sprint", text)
+        self.assertIn("↳ 40/40 tests pass", text)
+        self.assertNotIn("↳ PRD updated", text)
+
+    def test_progress_percent_and_estimate(self):
+        # Logged PROGRESS 3/7 → 43%.
+        text = "\n".join(pd.render(self.run, 80, 40, color=False))
+        self.assertIn(" 43% 3/7 Wiring PATCH", text)
+        # Without PROGRESS, estimate from the two earlier develop runs in the same log.
+        run = pd.parse_log(self.lines, "maxPlanck", now=ts("2026-09-21 11:07:00"))
+        run.current_session().progress = None
+        est = pd.estimate_progress(run, run.current_session())
+        self.assertIsNotNone(est)
+        pct, basis = est
+        # medians: (13m55s, 4m45s) → 9m20s; elapsed 5m20s → 57%
+        self.assertEqual(pct, 57)
+        self.assertIn("2 earlier develop runs", basis)
+        text = "\n".join(pd.render(run, 80, 40, color=False))
+        self.assertIn("~57%", text)
+        # No history at all → explicit unknown.
+        lone = pd.parse_log(["[2026-01-01 00:00:00] START | Agent: maxPlanck-devops\n"], "maxPlanck", now=ts("2026-01-01 00:10:00"))
+        self.assertIsNone(pd.estimate_progress(lone, lone.current_session()))
+        self.assertIn("?% no PROGRESS reported yet", "\n".join(pd.render(lone, 80, 20, color=False)))
 
     def test_loops_and_rerun_counts(self):
         run = pd.parse_log(upto(self.lines, "Pipeline complete (sprint 02)"), "maxPlanck", now=ts("2026-09-20 10:00:00"))
         text = "\n".join(pd.render(run, 120, 50, color=False))
         self.assertIn("complete", text)
-        self.assertIn("develop ✓ r2", text)
+        self.assertIn("✓ develop  r2", text)
         self.assertIn("review → develop ×1", text)
         self.assertIn("NEEDS CHANGES", text)
 
@@ -77,8 +116,13 @@ class RenderTests(unittest.TestCase):
             section = body.split("unresolved (1)")[1].split("\n\n")[0]
             self.assertNotIn("…", section)
             self.assertEqual(" ".join(l.strip() for l in section.strip().splitlines()), "• " + item)
-            reason_block = body.split("↳ ")[1].split("\n\n")[0]
-            self.assertEqual(" ".join(l.strip() for l in reason_block.strip().splitlines()), reason)
+            after = body.split("↳ ")[1].splitlines()
+            continuation = []
+            for line in after[1:]:
+                if not line.startswith("      "):  # hanging indent under "    ↳ "
+                    break
+                continuation.append(line.strip())
+            self.assertEqual(" ".join([after[0].strip()] + continuation), reason)
 
     def test_unresolved_outranks_tail_when_short(self):
         run = pd.parse_log(self.lines, "maxPlanck", now=ts("2026-09-21 11:07:00"))

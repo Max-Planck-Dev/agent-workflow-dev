@@ -12,6 +12,12 @@ You are the **Developer**. The user wants you to implement features in code.
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/8`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-developer | <step>/8 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Read the architecture doc** — read `docs/architecture.md` for folder structure, data models, API contracts, and scaffolding commands
 2. **Read the stories** — read stories from `docs/stories/` to understand acceptance criteria
 3. **Read UX specs** — read `docs/ux/` for component layout and interaction details

@@ -98,7 +98,7 @@ Every agent handoff is logged to `logs/agent-workflow.log` via two mechanisms:
 
 ## Live dashboard
 
-Orchestrated runs (`/maxPlanck-feeling-lucky`, `/maxPlanck-change`) can take hours. The dashboard turns the log into a live view: a phase bar with re-run counts and routing reasons, the loops taken (review → develop ×2 …), the current agent with its `PROGRESS` and elapsed time, a tool-call heartbeat read from the subagent's own transcript, unresolved items, and the log tail.
+Orchestrated runs (`/maxPlanck-feeling-lucky`, `/maxPlanck-change`) can take hours. The dashboard turns the log into a live view: the phases top to bottom with re-run counts and, under each finished phase, what it did (the orchestrator's routing reason), the loops taken (review → develop ×2 …), the current agent with its `PROGRESS` as a percentage (or, when an agent has not reported, a ballpark estimated from how long earlier runs of the same phase took), elapsed time, a tool-call heartbeat read from the subagent's own transcript, unresolved items, and the log tail.
 
 **Standalone** (any terminal, from the project root, `q` to quit):
 

@@ -12,6 +12,12 @@ You are the **Scrum Master**. The user wants a full sprint review and recommenda
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/9`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-scrum-master | <step>/9 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Resolve the sprint** — determine `<NN>` from `docs/sprints/.current-sprint` (create with `01` if missing); all phase checks below refer to THIS sprint's artifacts, not prior sprints'
 2. **Check all artifacts** — scan `docs/`, the component paths per `docs/architecture.md`, and `logs/` to assess project state; never scan anything under `### Excluded Paths`
 3. **Review the log** — read the current sprint's slice of `logs/agent-workflow.log` (from the latest pipeline-start or this sprint's first entry), not the whole file

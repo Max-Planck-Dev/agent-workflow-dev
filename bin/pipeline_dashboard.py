@@ -142,6 +142,7 @@ class Run:
     verdicts: Dict[str, Optional[str]] = field(default_factory=dict)
     malformed: int = 0
     now: float = 0.0
+    history: Dict[str, List[float]] = field(default_factory=dict)  # phase -> past run durations (all runs in the log)
 
     def current_session(self) -> Optional[AgentSession]:
         for s in reversed(self.agent_sessions):
@@ -266,6 +267,7 @@ def parse_log(lines, prefix: str = DEFAULT_PREFIX, now: Optional[float] = None, 
         if action == "PIPELINE" and START_RE.match(rest):
             start_idx = i
     window = records[start_idx:] if start_idx is not None else records
+    run.history = phase_history(records, prefix)
 
     for ts, action, agent, rest in window:
         t = parse_ts(ts)
@@ -324,6 +326,54 @@ def tail_lines(lines, prefix: str, tail_n: int) -> List[str]:
         if action == "PIPELINE" or norm_agent(agent, prefix):
             keep.append(raw)
     return keep[-tail_n:]
+
+
+def phase_history(records, prefix: str) -> Dict[str, List[float]]:
+    """Durations of every finished phase run in the log, keyed by phase.
+
+    Used to estimate how far along the current agent is when it has not
+    logged PROGRESS: elapsed time against the median of earlier runs of the
+    same phase is a ballpark, but a useful one on multi-hour pipelines.
+    """
+    started: Dict[str, float] = {}
+    out: Dict[str, List[float]] = {}
+    for ts, action, agent, rest in records:
+        t = parse_ts(ts)
+        if action == "START":
+            name = norm_agent(agent, prefix)
+            role = role_of(name) if name else None
+            phase = ROLE_TO_PHASE.get(role) if role else None
+            if phase:
+                started[phase] = t
+        elif action == "PIPELINE":
+            m = ROUTE_RE.match(rest)
+            if m and m.group(3) == "finished":
+                phase = canon_phase(m.group(1))
+                if phase in started:
+                    dur = t - started.pop(phase)
+                    if dur > 0:
+                        out.setdefault(phase, []).append(dur)
+    return out
+
+
+def median(values: List[float]) -> float:
+    vals = sorted(values)
+    n = len(vals)
+    return vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2
+
+
+def estimate_progress(run: Run, sess: "AgentSession"):
+    """(pct, basis) ballpark for a session without PROGRESS, or None."""
+    role = role_of(sess.agent)
+    phase = ROLE_TO_PHASE.get(role) if role else None
+    if not phase or not run.history.get(phase):
+        return None
+    typical = median(run.history[phase])
+    if typical <= 0:
+        return None
+    elapsed = max(0.0, run.now - sess.start_ts)
+    pct = min(95, int(100 * elapsed / typical))
+    return pct, f"est. from {len(run.history[phase])} earlier {phase} run{'s' if len(run.history[phase]) != 1 else ''}, median {fmt_dur(typical)}"
 
 
 def _apply_pipeline(run: Run, t: float, rest: str) -> None:
@@ -626,7 +676,12 @@ class HerdrBridge:
         sess = run.current_session()
         agent_txt = short_agent(sess.agent, run.prefix) if sess else "-"
         if sess and sess.progress:
-            agent_txt += f" {sess.progress[0]}/{sess.progress[1]}"
+            n, total, _ = sess.progress
+            agent_txt += f" {round(100 * min(n, total) / max(total, 1))}%"
+        elif sess:
+            est = estimate_progress(run, sess)
+            if est:
+                agent_txt += f" ~{est[0]}%"
         tokens = (phase_txt, agent_txt)
         now = time.time()
         if tokens == self.last_tokens and now - self.last_push < 10:
@@ -747,9 +802,10 @@ def bar(n: int, total: int, width: int) -> str:
 
 
 def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int):
-    """Return an ordered list of (name, [segments-per-line]) sections."""
+    """Return ([(name, [segments-per-line])], {name: compact alternative})."""
     now = run.now
     sections = []
+    alternates: Dict[str, List[List[Seg]]] = {}
 
     # Header
     glyph, gcol = STATE_GLYPH[run.state], STATE_COLOR[run.state]
@@ -777,45 +833,36 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
         lines.append([(f"no log activity for {fmt_dur(now - run.last_line_ts)}", "red")])
     sections.append(("header", lines))
 
-    # Phase bar
+    # Phase list: one phase per row, what each finished phase did underneath.
     if run.order:
-        lines = []
-        wide: List[Seg] = []
+        full, compact = [], []
+        last = run.transitions[-1] if run.transitions else None
         for name in run.order:
             ps = run.phases[name]
-            label = f"{name} {STATUS_GLYPH[ps.status]}"
-            if ps.runs > 1 or (ps.status == "running" and ps.runs >= 1):
-                label += f" r{ps.runs + (1 if ps.status == 'running' else 0)}"
-            wide.append((label, STATUS_COLOR[ps.status]))
-            wide.append(("  ", None))
-        if sum(len(t) for t, _ in wide) <= width:
-            lines.append(wide)
-            active = run.current_phase()
-            if active and run.phases[active].status == "running" and run.phases[active].started:
-                lines.append([(f"  {active}: {fmt_dur(now - run.phases[active].started)}", "dim")])
-        else:
-            for name in run.order:
-                ps = run.phases[name]
-                segs = [(f"{STATUS_GLYPH[ps.status]} ", STATUS_COLOR[ps.status]), (f"{name:<8}", STATUS_COLOR[ps.status] if ps.status != "done" else None)]
-                extra = ""
-                if ps.status == "running":
-                    extra = f" r{ps.runs + 1}" if ps.runs else ""
-                    if ps.started:
-                        extra += f"  {fmt_dur(now - ps.started)}"
-                elif ps.runs > 1:
-                    extra = f" r{ps.runs}"
-                    if ps.durations:
-                        extra += f"  {fmt_dur(sum(ps.durations))}"
-                elif ps.durations:
-                    extra = f"     {fmt_dur(sum(ps.durations))}"
-                if extra:
-                    segs.append((extra, "dim"))
-                lines.append(segs)
-        # Reason under the last finished phase
-        last = run.transitions[-1] if run.transitions else None
-        if last and last.reason:
-            lines.extend(wrapped([("  ↳ ", "dim")], last.reason, "dim", width))
-        sections.append(("phases", lines))
+            col = STATUS_COLOR[ps.status]
+            segs = [(f"{STATUS_GLYPH[ps.status]} ", col), (f"{name:<8}", col if ps.status != "done" else None)]
+            extra = ""
+            if ps.status == "running":
+                extra = f" r{ps.runs + 1}" if ps.runs else ""
+                if ps.started:
+                    extra += f"  {fmt_dur(now - ps.started)}"
+            elif ps.runs > 1:
+                extra = f" r{ps.runs}"
+                if ps.durations:
+                    extra += f"  {fmt_dur(sum(ps.durations))}"
+            elif ps.durations:
+                extra = f"     {fmt_dur(sum(ps.durations))}"
+            if extra:
+                segs.append((extra, "dim"))
+            full.append(segs)
+            compact.append(segs)
+            if ps.last_reason:
+                reason_lines = wrapped([("    ↳ ", "dim")], ps.last_reason, "dim", width)
+                full.extend(reason_lines)
+                if last and (name == last.src) and ps.last_reason == last.reason:
+                    compact.extend(reason_lines)
+        sections.append(("phases", full))
+        alternates["phases"] = compact
 
     # Current agent
     sess = run.current_session()
@@ -823,12 +870,18 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
     if sess:
         name = short_agent(sess.agent, run.prefix)
         lines.append([(name, "bold"), (f"  {fmt_dur(now - sess.start_ts)}", "yellow")])
+        bw = min(20, max(4, width - 16))
         if sess.progress:
             n, total, text = sess.progress
-            bw = min(20, max(4, width - 12))
-            lines.extend(wrapped([(bar(n, total, bw), "cyan"), (f" {n}/{total} ", "bold")], text, None, width))
+            pct = round(100 * min(n, total) / max(total, 1))
+            lines.extend(wrapped([(bar(n, total, bw), "cyan"), (f" {pct:>3}% ", "bold"), (f"{n}/{total} ", "bold")], text, None, width))
         else:
-            lines.append([("no PROGRESS reported yet", "dim")])
+            est = estimate_progress(run, sess)
+            if est:
+                pct, basis = est
+                lines.extend(wrapped([(bar(pct, 100, bw), "dim"), (f" ~{pct:>2}% ", "bold")], basis, "dim", width))
+            else:
+                lines.append([(bar(0, 1, bw), "dim"), ("   ?% no PROGRESS reported yet", "dim")])
         if heartbeat and heartbeat.get("path"):
             hb = f"tools {heartbeat['tool_count']}"
             if heartbeat.get("last_tool"):
@@ -877,12 +930,12 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
 
     if width >= 30:
         sections.append(("footer", [[("q quit · r refresh", "dim")]]))
-    return sections
+    return sections, alternates
 
 
 def render(run: Run, width: int, height: int, color: bool = True, heartbeat: Optional[dict] = None, tail_n: int = TAIL_DEFAULT) -> List[str]:
     width, height = max(10, width), max(3, height)
-    sections = build_sections(run, heartbeat, width, tail_n)
+    sections, alternates = build_sections(run, heartbeat, width, tail_n)
     blocks = {name: lines for name, lines in sections}
     order = [name for name, _ in sections]
 
@@ -899,6 +952,8 @@ def render(run: Run, width: int, height: int, color: bool = True, heartbeat: Opt
 
     while total() > height and len(blocks.get("tail", [])) > 2:
         blocks["tail"].pop(1)
+    if total() > height and "phases" in alternates and "phases" in blocks:
+        blocks["phases"] = list(alternates["phases"])
     if total() > height:
         drop("tail")
     if total() > height:

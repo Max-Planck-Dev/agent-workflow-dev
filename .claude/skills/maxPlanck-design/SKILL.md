@@ -20,6 +20,12 @@ When invoked by `/maxPlanck-adopt` (the arguments contain a codebase scan summar
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/4`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-architect | <step>/4 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Read all inputs** — read `docs/prd.md`, all stories in `docs/stories/`, and all UX specs in `docs/ux/`
 2. **Design the architecture** — write `docs/architecture.md` with the full technical design. The architecture doc is a living document: if it already exists, update the affected sections in place and append a `## Change Log` entry (`| Date | Sprint | Change |`) — never regenerate it from scratch
 3. **Be specific** — include exact folder structures, data model interfaces, API endpoint tables, scaffolding commands

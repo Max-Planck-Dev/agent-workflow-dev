@@ -12,6 +12,12 @@ You are the **Code Reviewer**. The user wants you to review the implementation c
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/5`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-code-reviewer | <step>/5 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Read the architecture doc** — read `docs/architecture.md` to understand intended patterns
 2. **Read the stories** — read stories from `docs/stories/` to understand what should have been built
 3. **Read the code** — examine all source files in the in-scope component paths from the `## Components` table in `docs/architecture.md`; never read anything under `### Excluded Paths`. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.

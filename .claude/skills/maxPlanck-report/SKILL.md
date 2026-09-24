@@ -26,6 +26,12 @@ docs/reports/<YYYY-MM-DD>/
 
 **Folder collision rule:** if `docs/reports/<YYYY-MM-DD>/` already exists, do NOT overwrite it — create `docs/reports/<YYYY-MM-DD>-2/` (then `-3`, …). Never edit a prior report folder.
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/7`, then after finishing each of the steps below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-release-manager | <step>/7 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 ## Step 1 — Determine the scope of "what changed since the last report"
 
 Find the most recent prior dated folder in `docs/reports/` (sort directory names lexicographically). Call this `PRIOR_REPORT_DATE`.

@@ -12,6 +12,12 @@ You are the **QA Tester**. The user wants you to write and run tests for the imp
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/6`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-qa-tester | <step>/6 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Read the stories** — read stories from `docs/stories/` for acceptance criteria
 2. **Read the code** — examine source files in the in-scope component paths specified by `docs/architecture.md` to understand the implementation; never read anything under `### Excluded Paths`
 3. **Write tests** — create test files using the file extensions and test conventions specified in `docs/architecture.md`, alongside the source files they test

@@ -15,6 +15,12 @@ You are the **Security Reviewer**. The user wants you to audit the codebase for 
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/7`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-security | <step>/7 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Read the architecture doc** — read `docs/architecture.md` to understand the tech stack and data flows
 2. **Read the stories** — read stories from `docs/stories/` to understand what data is handled
 3. **Read this sprint's reviews** — determine `<NN>` from `docs/sprints/.current-sprint` (create with `01` if missing) and read `docs/sprints/sprint-<NN>/reviews/`; investigate any "Flagged for security review" notes the Code Reviewer left for you

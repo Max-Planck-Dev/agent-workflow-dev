@@ -26,6 +26,12 @@ When invoked by `/maxPlanck-adopt` (the arguments contain a codebase scan summar
 
 ## Your Task
 
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/6`, then after finishing each numbered step below log the step number:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-product-owner | <step>/6 | <what you are doing now>" >> logs/agent-workflow.log
+```
+
 1. **Resolve the sprint** — read `docs/sprints/.current-sprint` (create it containing `01` if missing). If the current sprint folder `docs/sprints/sprint-<NN>/` already contains a `sprint-summary.md`, the prior cycle closed: increment the counter and log that a new sprint started
 2. **Check for existing work** — read `docs/prd.md` and `docs/stories/` to see if anything exists already
 3. **Gather the idea** — if the user provided a project description (as arguments to the command or in conversation), use it. Otherwise, **ask the user** to describe what they want to build before proceeding
