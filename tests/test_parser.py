@@ -105,10 +105,69 @@ class ModernFeelingLuckyRunTests(unittest.TestCase):
         self.assertEqual(dev[0].progress, (5, 5, "Build passes"))
         self.assertIsNone(dev[1].progress)
 
-    def test_unknown_stop_closes_latest_session(self):
+    def test_unknown_stop_never_closes_a_workflow_session(self):
+        # The `STOP unknown` at 09:04:00 is ignored; ux closes on its routing line.
         ux = [s for s in self.run.agent_sessions if s.agent == "maxPlanck-ux-designer"][0]
-        self.assertEqual(ux.stop_ts, ts("2026-09-20 09:04:00"))
+        self.assertEqual(ux.stop_ts, ts("2026-09-20 09:04:05"))
         self.assertIsNone(self.run.current_session())
+
+    def test_periodic_unknown_stops_keep_agent_visible(self):
+        lines = [
+            "[2026-09-25 17:13:00] PIPELINE | Agent: orchestrator | Change request started (sprint 34): x\n",
+            "[2026-09-25 17:13:18] START | Agent: maxPlanck-security\n",
+        ] + [f"[2026-09-25 17:{14 + i:02d}:00] STOP | Agent: unknown\n" for i in range(6)]
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-09-25 17:20:30"))
+        sess = run.current_session()
+        self.assertIsNotNone(sess)
+        self.assertEqual(sess.agent, "maxPlanck-security")
+        self.assertEqual(run.phases["audit"].status, "running")
+        self.assertEqual(run.state, "running")
+
+    def test_agent_written_start_line_is_not_a_new_session(self):
+        lines = [
+            "[2026-09-25 17:20:00] PIPELINE | Agent: orchestrator | Change request started (sprint 34): x\n",
+            "[2026-09-25 17:20:43] START | Agent: maxPlanck-devops\n",
+            "[2026-09-25 17:25:08] START | Agent: maxPlanck-devops | Documentation-only DevOps pass | Output: docs/devops/deployment.md\n",
+            "[2026-09-25 17:25:09] PROGRESS | Agent: maxPlanck-devops | 2/4 | Updating rows\n",
+        ]
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-09-25 17:26:00"))
+        devops = [s for s in run.agent_sessions if s.agent == "maxPlanck-devops"]
+        self.assertEqual(len(devops), 1)
+        self.assertEqual(devops[0].start_ts, ts("2026-09-25 17:20:43"))
+        self.assertEqual(devops[0].progress, (2, 4, "Updating rows"))
+
+    def test_next_agent_start_closes_previous_session(self):
+        lines = [
+            "[2026-09-25 17:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 34): x\n",
+            "[2026-09-25 17:00:10] START | Agent: maxPlanck-product-owner\n",
+            "[2026-09-25 17:05:00] START | Agent: maxPlanck-architect\n",
+        ]
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-09-25 17:06:00"))
+        po = [s for s in run.agent_sessions if s.agent == "maxPlanck-product-owner"][0]
+        self.assertEqual(po.stop_ts, ts("2026-09-25 17:05:00"))
+        self.assertEqual(run.current_session().agent, "maxPlanck-architect")
+
+    def test_improvised_phase_is_slotted_into_the_order(self):
+        lines = [
+            "[2026-09-25 17:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 34): x\n",
+            "[2026-09-25 17:20:35] PIPELINE | Agent: orchestrator | Phase audit finished → routing to infra | Reason: ISRs\n",
+            "[2026-09-25 17:20:43] START | Agent: maxPlanck-devops\n",
+        ]
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-09-25 17:21:00"))
+        self.assertEqual(run.order, ["kickoff", "design", "develop", "review", "audit", "infra", "test", "sprint"])
+        self.assertEqual(run.phases["infra"].status, "running")
+        self.assertEqual(run.current_phase(), "infra")
+
+    def test_follow_up_agent_after_completion_shows_running(self):
+        lines = [
+            "[2026-09-25 17:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 34): x\n",
+            "[2026-09-25 17:29:30] PIPELINE | Agent: orchestrator | Change request complete (sprint 34) | Unresolved: 1\n",
+            "[2026-09-25 17:31:05] START | Agent: maxPlanck-security\n",
+            "[2026-09-25 17:31:37] STOP | Agent: unknown\n",
+        ]
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-09-25 17:32:00"))
+        self.assertEqual(run.state, "running")
+        self.assertEqual(run.current_session().agent, "maxPlanck-security")
 
     def test_phase_durations(self):
         dev = self.run.phases["develop"]

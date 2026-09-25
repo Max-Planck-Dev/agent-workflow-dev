@@ -26,7 +26,7 @@ docs/reports/<YYYY-MM-DD>/
 
 **Folder collision rule:** if `docs/reports/<YYYY-MM-DD>/` already exists, do NOT overwrite it — create `docs/reports/<YYYY-MM-DD>-2/` (then `-3`, …). Never edit a prior report folder.
 
-**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/7`, then after finishing each of the steps below log the step number:
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/7`, then after finishing each of the steps below log the step number. Each line is its own Bash call made the moment that step completes; a batch of PROGRESS lines written together at the end shows nothing while you work. Never write START or STOP lines yourself, the hooks own those:
 
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-release-manager | <step>/7 | <what you are doing now>" >> logs/agent-workflow.log

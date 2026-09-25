@@ -30,6 +30,7 @@ import os
 import subprocess
 import sys
 import time
+from typing import List
 
 # Rewritten by setup.sh --prefix; the herdr identifiers below are deliberately
 # lower-case and prefix-free so a rebrand never touches them.
@@ -187,6 +188,39 @@ def prune_stamps(root: str) -> None:
                     os.remove(p)
             except Exception:
                 pass
+    except Exception:
+        pass
+
+
+def open_stamps(root: str) -> List[str]:
+    """Agent names with a START stamp and no STOP yet (workflow agents only)."""
+    names = []
+    try:
+        for entry in os.listdir(stamps_dir(root)):
+            name, _ = read_stamp(root, entry)
+            if name and is_workflow_agent(name):
+                names.append(name)
+    except Exception:
+        pass
+    return names
+
+
+def note_unattributed_stop(root: str, payload: dict) -> None:
+    """Keep a small diagnostic trail of STOP payloads that matched no agent.
+
+    Claude fires SubagentStop periodically while a background subagent runs;
+    these carry no usable agent identity. The keys are recorded (never the
+    values of large fields) so the cause can be inspected later.
+    """
+    try:
+        path = os.path.join(pipeline_dir(root), "unattributed-stops.jsonl")
+        os.makedirs(pipeline_dir(root), exist_ok=True)
+        if os.path.exists(path) and os.path.getsize(path) > 1_000_000:
+            return
+        small = {k: (v if isinstance(v, (str, int, float, bool)) and len(str(v)) < 120 else f"<{type(v).__name__}>")
+                 for k, v in payload.items()}
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"ts": now_iso(), "payload": small}, ensure_ascii=False) + "\n")
     except Exception:
         pass
 
@@ -473,6 +507,13 @@ def handle_stop(root: str, payload: dict) -> None:
     started = None
     if agent_id:
         _, started = read_stamp(root, agent_id)
+    if name == "unknown" and open_stamps(root):
+        # A workflow agent is still running (its stamp is open) and this STOP
+        # is not its own: Claude emits such stops every ~30 s for background
+        # subagents. Logging them as "STOP | Agent: unknown" only pollutes the
+        # log the agents and the dashboard read.
+        note_unattributed_stop(root, payload)
+        return
     try:
         write_human_line(root, "STOP", name)
     except Exception:

@@ -62,6 +62,9 @@ ORDERS = {
     "adopt": ["adopt"],
 }
 OPTIONAL = {"change": {"design", "audit"}}
+# Reference ordering for phases an orchestrator adds that its kind's order
+# does not list (a change request that routes through infra, for example).
+CANONICAL = ORDERS["feeling-lucky"] + ["report"]
 
 LINE_RE = re.compile(
     r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (\w+)\s*\| Agent: ([^|]*?)\s*(?:\| (.*))?$"
@@ -232,7 +235,29 @@ def canon_phase(name: str) -> str:
 def _ensure_phase(run: Run, name: str) -> PhaseState:
     if name not in run.phases:
         run.phases[name] = PhaseState(name=name)
+    if run.order and name not in run.order and name in CANONICAL:
+        # Slot an improvised phase where the canonical pipeline would have it.
+        ci = CANONICAL.index(name)
+        pos = len(run.order)
+        for i, existing in enumerate(run.order):
+            if existing in CANONICAL and CANONICAL.index(existing) > ci:
+                pos = i
+                break
+        run.order.insert(pos, name)
     return run.phases[name]
+
+
+def _phase_of_agent(name: Optional[str]) -> Optional[str]:
+    role = role_of(name) if name else None
+    return ROLE_TO_PHASE.get(role) if role else None
+
+
+def _close_sessions(run: Run, t: float, agent: Optional[str] = None, phase: Optional[str] = None, all_workflow: bool = False) -> None:
+    for sess in run.agent_sessions:
+        if sess.stop_ts is not None or sess.noise:
+            continue
+        if all_workflow or (agent and sess.agent == agent) or (phase and _phase_of_agent(sess.agent) == phase):
+            sess.stop_ts = t
 
 
 def _open_session(run: Run, agent: str) -> Optional[AgentSession]:
@@ -277,22 +302,35 @@ def parse_log(lines, prefix: str = DEFAULT_PREFIX, now: Optional[float] = None, 
         if action == "PIPELINE":
             _apply_pipeline(run, t, rest)
         elif action == "START":
-            sess = AgentSession(agent=name or agent or "unknown", start_ts=t, noise=name is None)
-            run.agent_sessions.append(sess)
-            if name:
-                role = role_of(name)
-                phase = ROLE_TO_PHASE.get(role) if role else None
-                if phase and (phase in run.phases or run.order):
+            if name and name != "orchestrator":
+                if _open_session(run, name) is not None:
+                    # An agent writing its own START line (hooks-only vocabulary)
+                    # while its hook session is open: not a new session.
+                    if rest:
+                        _open_session(run, name).events.append((t, "START", rest.split(" | Output:")[0].strip()))
+                    continue
+                # Workflow agents run one at a time: a new one means the previous ended.
+                _close_sessions(run, t, all_workflow=True)
+                run.agent_sessions.append(AgentSession(agent=name, start_ts=t))
+                phase = _phase_of_agent(name)
+                if phase and run.order and run.completed_ts is None:
+                    # A follow-up agent after completion is shown as a session
+                    # but does not rewrite the finished run's phase record.
                     ps = _ensure_phase(run, phase)
-                    if ps.status != "done" or phase in run.order:
-                        ps.status = "running"
-                        ps.started = t
+                    ps.status = "running"
+                    ps.started = t
+            elif name is None:
+                run.agent_sessions.append(AgentSession(agent=agent or "unknown", start_ts=t, noise=True))
         elif action == "STOP":
-            sess = _open_session(run, name) if name else None
-            if sess is None:
-                sess = _latest_open(run)
-            if sess is not None:
-                sess.stop_ts = t
+            if name:
+                _close_sessions(run, t, agent=name)
+            else:
+                # Unattributed STOPs also fire periodically while an agent runs;
+                # they may only close a noise session, never a workflow one.
+                for sess in reversed(run.agent_sessions):
+                    if sess.stop_ts is None and sess.noise:
+                        sess.stop_ts = t
+                        break
         elif action == "PROGRESS":
             sess = (_open_session(run, name) if name else None) or _latest_open(run)
             m = PROGRESS_RE.match(rest)
@@ -402,6 +440,7 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
     if m:
         _, sprint, unresolved = m.groups()
         run.completed_ts = t
+        _close_sessions(run, t, all_workflow=True)
         if sprint and not run.sprint:
             run.sprint = sprint
         if unresolved is not None:
@@ -413,6 +452,7 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
         src, note, verb, dst, reason = m.groups()
         src, dst = canon_phase(src), canon_phase(dst)
         ps = _ensure_phase(run, src)
+        _close_sessions(run, t, phase=src)
         if verb == "finished":
             ps.runs += 1
             ps.status = "done"
@@ -448,6 +488,9 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
 def _finalise(run: Run, now: float) -> None:
     if run.started_ts is None:
         run.state = "running" if run.current_session() else "idle"
+        return
+    if run.completed_ts is not None and run.current_session() is not None:
+        run.state = "running"  # a follow-up agent after the run completed
         return
     if run.completed_ts is not None:
         run.state = "complete"

@@ -12,7 +12,7 @@ You are the **Code Reviewer**. The user wants you to review the implementation c
 
 ## Your Task
 
-**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/5`, then after finishing each numbered step below log the step number:
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/5`, then after finishing each numbered step below log the step number. Each line is its own Bash call made the moment that step completes; a batch of PROGRESS lines written together at the end shows nothing while you work. Never write START or STOP lines yourself, the hooks own those:
 
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-code-reviewer | <step>/5 | <what you are doing now>" >> logs/agent-workflow.log

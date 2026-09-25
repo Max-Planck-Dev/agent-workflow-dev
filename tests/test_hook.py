@@ -104,6 +104,23 @@ class HookTests(unittest.TestCase):
         self.assertTrue(lines[1].endswith("STOP | Agent: Explore"))
         self.assertEqual(self.events(), [])
 
+    def test_unattributed_stop_while_agent_runs_is_not_logged(self):
+        self.hook("START", self.payload(agent_type="maxPlanck-security", agent_id="s1"))
+        self.hook("STOP", {"session_id": "sess1", "transcript_path": self.main_transcript})  # no agent_id
+        self.hook("STOP", self.payload(agent_id="ghost"))  # unknown id, no stamp, no meta
+        lines = self.log_lines()
+        self.assertEqual(len(lines), 1, lines)
+        diag = os.path.join(self.tmp, "logs", ".pipeline", "unattributed-stops.jsonl")
+        self.assertTrue(os.path.exists(diag))
+        with open(diag) as fh:
+            self.assertEqual(len(fh.read().splitlines()), 2)
+        # The agent's own STOP still resolves and closes normally.
+        self.hook("STOP", self.payload(agent_id="s1"))
+        self.assertTrue(self.log_lines()[-1].endswith("STOP | Agent: maxPlanck-security"))
+        # With nothing running, an unattributed STOP is logged as before.
+        self.hook("STOP", self.payload(agent_id="ghost2"))
+        self.assertTrue(self.log_lines()[-1].endswith("STOP | Agent: unknown"))
+
     def test_garbage_payload(self):
         self.hook("STOP", "not json at all")
         self.assertTrue(self.log_lines()[-1].endswith("STOP | Agent: unknown"))
