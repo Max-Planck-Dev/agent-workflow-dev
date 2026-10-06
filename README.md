@@ -12,6 +12,14 @@ From your project root:
 d=$(mktemp -d) && git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git "$d" && bash "$d/setup.sh" .; rm -rf "$d"
 ```
 
+Or, if you use the [GitHub CLI](https://cli.github.com/) (`gh auth login` once first):
+
+```
+d=$(mktemp -d) && gh repo clone Max-Planck-Dev/agent-workflow-dev "$d" && bash "$d/setup.sh" .; rm -rf "$d"
+```
+
+The repo is public, so the plain `git clone` form needs no credentials. If it fails anyway, the usual causes are `git` missing from your `PATH`, a proxy or firewall blocking github.com, or running the command from a shell other than bash or zsh (`$(mktemp -d)` and `&&` are POSIX-shell syntax, so run it from bash or zsh, not from Windows cmd or PowerShell).
+
 The installer copies the agents, skills, hooks, and shared config into your project's `.claude/`, merges the logging hooks into your `settings.json` without touching your own hooks, and records what it installed in `.claude/maxPlanck-workflow-version.json`.
 
 ### Plugin install
@@ -27,6 +35,8 @@ This is an open project — you can install the whole team under **your** name:
 ```
 d=$(mktemp -d) && git clone https://github.com/Max-Planck-Dev/agent-workflow-dev.git "$d" && bash "$d/setup.sh" . --prefix acme; rm -rf "$d"
 ```
+
+(or `gh repo clone Max-Planck-Dev/agent-workflow-dev "$d"` in place of the `git clone`, as above)
 
 Every file name, skill name, agent name, and cross-reference is rewritten from `maxPlanck` to your prefix: you get `/acme-kickoff`, `/acme-feeling-lucky`, `.claude/acme-default-stack.md`, and so on. Brand the reports too via `.claude/<prefix>-brand.json`.
 
