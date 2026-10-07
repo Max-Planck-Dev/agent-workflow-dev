@@ -37,6 +37,7 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 | Kickoff | User Stories | ✅/❌ | docs/stories/ |
 | UX | Wireframes | ✅/❌ | docs/ux/ |
 | Design | Architecture Doc | ✅/❌ | docs/architecture.md |
+| Design Review | Design Review Report (reviewer named per round) | ✅/❌ | docs/sprints/sprint-NN/design-review.md |
 | Develop | Source Code | ✅/❌ | <component paths per the ## Components table in docs/architecture.md> |
 | Review | Review Reports | ✅/❌ | docs/sprints/sprint-NN/reviews/ |
 | Security | Security Report | ✅/❌ | docs/sprints/sprint-NN/security-report.md |
@@ -61,7 +62,7 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 <What should be done next and why>
 
 ## Blockers
-<Any issues preventing progress. MUST include every unresolved failure verdict from this sprint: NEEDS CHANGES reviews, CRITICAL FINDINGS security verdicts, BLOCKED devops verdicts, FAIL test results — each with a named next step. Never close a sprint by omitting a known failure.>
+<Any issues preventing progress. MUST include every unresolved failure verdict from this sprint: UNAVAILABLE design reviews (the design was not reviewed), CHANGES PROPOSED design reviews with proposals the Architect has not ruled on, NEEDS CHANGES reviews, CRITICAL FINDINGS security verdicts, BLOCKED devops verdicts, FAIL test results — each with a named next step. Never close a sprint by omitting a known failure.>
 
 ## Retrospective Notes
 <What went well, what could improve>
@@ -92,7 +93,7 @@ Before recommending the next phase, verify:
 
 - **Before UX:** PRD exists + at least 3 stories with acceptance criteria
 - **Before Design:** UX specs exist for P0/P1 stories
-- **Before Develop:** Architecture doc exists with data models, API endpoints, folder structure
+- **Before Develop:** Architecture doc exists with data models, API endpoints, folder structure; if the design changed this sprint (a sprint-`<NN>` Change Log entry), `docs/sprints/sprint-<NN>/design-review.md` exists and none of its proposals is still open (each has a row in the doc's `## Design Review Log`)
 - **Before Review:** Code exists in the component paths specified by the architecture doc
 - **Before Security:** Code review completed **this sprint**, no unresolved critical issues
 - **Before DevOps:** Security report exists at `docs/sprints/sprint-<NN>/security-report.md`, no CRITICAL FINDINGS verdict

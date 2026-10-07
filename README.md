@@ -61,7 +61,7 @@ Script installs record their source repo and commit in `.claude/maxPlanck-workfl
 
 ## What Is This?
 
-Ten specialized AI agents — Product Owner, UX Designer, Architect, Developer, Code Reviewer, Security Reviewer, DevOps Engineer, QA Tester, Scrum Master, and Release Manager — work together through a standard Agile pipeline. Each agent has a defined role, reads artifacts from previous phases, and produces its own outputs. Knowledge compounds across cycles: living docs (PRD, architecture) keep append-only change logs, while per-cycle artifacts (reviews, test results, security reports, sprint summaries) land in `docs/sprints/sprint-NN/` folders. Two orchestration skills (`feeling-lucky`, `change`) drive multi-phase runs, and `report` produces the release-handoff pack.
+Eleven specialized AI agents — Product Owner, UX Designer, Architect, Design Reviewer, Developer, Code Reviewer, Security Reviewer, DevOps Engineer, QA Tester, Scrum Master, and Release Manager — work together through a standard Agile pipeline. Each agent has a defined role, reads artifacts from previous phases, and produces its own outputs. Knowledge compounds across cycles: living docs (PRD, architecture) keep append-only change logs, while per-cycle artifacts (reviews, test results, security reports, sprint summaries) land in `docs/sprints/sprint-NN/` folders. Two orchestration skills (`feeling-lucky`, `change`) drive multi-phase runs, and `report` produces the release-handoff pack.
 
 **No pre-scaffolding.** Agents handle everything from requirements through implementation.
 
@@ -72,6 +72,7 @@ Ten specialized AI agents — Product Owner, UX Designer, Architect, Developer, 
 | `/maxPlanck-kickoff` | Product Owner writes PRD + stories from your idea |
 | `/maxPlanck-ux` | UX Designer creates wireframes and component specs |
 | `/maxPlanck-design` | Architect designs the technical system |
+| `/maxPlanck-design-review` | A second reviewer checks the design — OpenAI Codex if installed, Claude otherwise — and the Architect accepts or rejects each proposal |
 | `/maxPlanck-develop` | Developer scaffolds the project and implements features |
 | `/maxPlanck-review` | Code Reviewer audits the implementation |
 | `/maxPlanck-audit` | Security Reviewer audits and writes Infrastructure Security Requirements |
@@ -94,10 +95,18 @@ Determined at design time by the **Architect** agent:
 ## Agent Pipeline
 
 ```
-Product Owner → UX Designer → Architect → Developer → Code Reviewer → Security → DevOps → QA Tester → Scrum Master
+Product Owner → UX Designer → Architect → Design Reviewer → Developer → Code Reviewer → Security → DevOps → QA Tester → Scrum Master
 ```
 
 When you decide a feature set is ready to ship, the **Release Manager** (`/maxPlanck-report`) produces the client-facing handoff pack — a release-cadence step outside the sprint loop.
+
+### A second opinion on the design
+
+Before any code is written, the design gets an independent review. The reviewer reads the architecture doc against the PRD, stories, and UX specs and files improvement proposals in `docs/sprints/sprint-NN/design-review.md`. They go back to the Architect, who accepts, partially accepts, or rejects each one and records the decision and its rationale in a `## Design Review Log` in `docs/architecture.md`. The reviewer then re-checks, the same way Developer and Code Reviewer loop, for at most three rounds.
+
+**Who reviews:** if the [OpenAI Codex CLI](https://github.com/openai/codex) is installed (`codex` on your `PATH`, logged in with `codex login`), Codex does — a different model from the one that wrote the design. If it is not installed, or a Codex run fails, a Claude agent with a fresh context reviews instead. Each round of the report says who reviewed it, and why when it was the fallback.
+
+**What leaves your machine with Codex:** your design docs (architecture, PRD, stories, UX specs) go to OpenAI through your own Codex login. Codex is given a temporary copy of those documents only and runs in its read-only sandbox — but that sandbox restricts writing, not reading, so treat it as reduced exposure rather than isolation. To keep a project on Claude even with Codex installed, create an empty `.claude/maxPlanck-no-codex` file in it.
 
 ## Observability
 

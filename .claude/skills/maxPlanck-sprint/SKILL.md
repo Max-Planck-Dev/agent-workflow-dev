@@ -39,7 +39,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-scrum-master | 
 
 4d. **Record per-component HEADs** — with several repositories a sprint is no longer atomic, so record each in-scope repo's short HEAD hash (`git -C <path> rev-parse --short HEAD`) in the sprint summary. The release report later needs these anchors
 5. **Update story statuses** — set the `**Status:**` line in each `docs/stories/story-NNN.md` (Done when all acceptance criteria have passing tests this sprint; In Progress when started; Draft otherwise). This one line is your only permitted edit to story files
-6. **Write sprint summary** — create or update `docs/sprints/sprint-<NN>/sprint-summary.md`, including the Bugs section (open QA bugs routed to `/maxPlanck-change` or new stories) and a Blockers section listing every unresolved failure verdict (NEEDS CHANGES / CRITICAL FINDINGS / BLOCKED / FAIL) with a named next step
+6. **Write sprint summary** — create or update `docs/sprints/sprint-<NN>/sprint-summary.md`, including the Bugs section (open QA bugs routed to `/maxPlanck-change` or new stories) and a Blockers section listing every unresolved failure verdict (UNAVAILABLE design review / CHANGES PROPOSED with open proposals / NEEDS CHANGES / CRITICAL FINDINGS / BLOCKED / FAIL) with a named next step
 7. **Write platform proposals** — create `docs/sprints/sprint-<NN>/platform-proposals.md`, carrying over every proposal from the prior sprint's file with its original number and an explicit status (Still Open / Partial / Done), then adding New proposals enabled by this sprint (see the Platform Proposals section of your agent definition)
 8. **Recommend next steps** — tell the user exactly what to do next
 9. **Log everything** — log the sprint review to `logs/agent-workflow.log`
@@ -53,6 +53,7 @@ Check each phase and report status:
 | Kickoff | PRD + 3 stories | `docs/prd.md` exists with a Change Log entry for sprint NN, `docs/stories/` has 3+ files |
 | UX | Wireframes for P0/P1 | `docs/ux/` has design files (or this-sprint revisions) for high-priority stories |
 | Design | Architecture doc | `docs/architecture.md` exists with models, APIs, structure |
+| Design Review | Design reviewed, proposals all ruled on | If `docs/architecture.md` has a Change Log entry for sprint NN: `docs/sprints/sprint-NN/design-review.md` exists and every `DR-NN-n` in it has a row in the `## Design Review Log` of `docs/architecture.md`. Report who reviewed (the `**Reviewer:**` line). A sprint whose design did not change needs no review — report it as `—` |
 | Develop | Code exists | Each in-scope component's path (per the `## Components` table in `docs/architecture.md`) has source files; report per component |
 | Review | Review reports | `docs/sprints/sprint-NN/reviews/` has reports, no unresolved criticals |
 | Security | Security report | `docs/sprints/sprint-NN/security-report.md` exists, no CRITICAL FINDINGS |

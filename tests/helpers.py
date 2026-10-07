@@ -10,6 +10,7 @@ FIXTURES = os.path.join(HERE, "fixtures")
 DASHBOARD = os.path.join(ROOT, "bin", "pipeline_dashboard.py")
 HOOK_SH = os.path.join(ROOT, ".claude", "hooks", "log-agent-lifecycle.sh")
 HOOK_PY = os.path.join(ROOT, ".claude", "hooks", "pipeline-events.py")
+DESIGN_REVIEW = os.path.join(ROOT, ".claude", "skills", "maxPlanck-design-review", "design_review.py")
 
 
 def load_module(name: str, path: str):
