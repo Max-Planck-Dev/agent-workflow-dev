@@ -1,0 +1,47 @@
+--- bin/pipeline_dashboard.py	2026-10-06 10:05:45
++++ bin/pipeline_dashboard.py	2026-10-06 17:21:30
+@@ -38,6 +38,7 @@
+ STALE_AFTER_S = 30 * 60
+ TAIL_DEFAULT = 8
+ HERDR_TIMEOUT_S = 2
++PHASE_COL_MIN = 8
+ 
+ TS_FMT = "%Y-%m-%d %H:%M:%S"
+ 
+@@ -45,6 +46,7 @@
+     "product-owner": "kickoff",
+     "ux-designer": "ux",
+     "architect": "design",
++    "design-reviewer": "design-review",
+     "developer": "develop",
+     "code-reviewer": "review",
+     "security": "audit",
+@@ -57,11 +59,13 @@
+ PHASE_ALIASES = {"security": "audit", "devops": "infra", "product-owner": "kickoff"}
+ 
+ ORDERS = {
+-    "feeling-lucky": ["kickoff", "ux", "design", "develop", "review", "audit", "infra", "test", "sprint"],
++    "feeling-lucky": ["kickoff", "ux", "design", "design-review", "develop", "review", "audit", "infra", "test", "sprint"],
+     "change": ["kickoff", "design", "develop", "review", "audit", "test", "sprint"],
+     "adopt": ["adopt"],
+ }
+-OPTIONAL = {"change": {"design", "audit"}}
++# design-review joined the pipeline after logs already existed: a run that
++# predates it must read as skipped, not as a missed phase.
++OPTIONAL = {"feeling-lucky": {"design-review"}, "change": {"design", "audit"}}
+ # Reference ordering for phases an orchestrator adds that its kind's order
+ # does not list (a change request that routes through infra, for example).
+ CANONICAL = ORDERS["feeling-lucky"] + ["report"]
+@@ -880,10 +884,11 @@
+     if run.order:
+         full, compact = [], []
+         last = run.transitions[-1] if run.transitions else None
++        name_w = max(PHASE_COL_MIN, max(len(n) for n in run.order))
+         for name in run.order:
+             ps = run.phases[name]
+             col = STATUS_COLOR[ps.status]
+-            segs = [(f"{STATUS_GLYPH[ps.status]} ", col), (f"{name:<8}", col if ps.status != "done" else None)]
++            segs = [(f"{STATUS_GLYPH[ps.status]} ", col), (f"{name:<{name_w}}", col if ps.status != "done" else None)]
+             extra = ""
+             if ps.status == "running":
+                 extra = f" r{ps.runs + 1}" if ps.runs else ""

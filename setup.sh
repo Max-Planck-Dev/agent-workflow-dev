@@ -238,7 +238,7 @@ for skill_dir in "$SCRIPT_DIR"/.claude/skills/${SRC_PREFIX}-*/; do
   [ -d "$skill_dir" ] || continue
   dst_dir=".claude/skills/$(rebrand "$(basename "$skill_dir")")"
   mkdir -p "$dst_dir"
-  find "$skill_dir" -type f | while read -r f; do
+  find "$skill_dir" -type f -not -path '*/__pycache__/*' | while read -r f; do
     rel="${f#"$skill_dir"}"
     dst="$dst_dir/$(rebrand "$rel")"
     mkdir -p "$(dirname "$dst")"
@@ -448,6 +448,7 @@ echo ""
 echo "  /${PREFIX}-kickoff        — Product Owner writes PRD + stories from your idea"
 echo "  /${PREFIX}-ux             — UX Designer creates wireframes"
 echo "  /${PREFIX}-design         — Architect creates technical design"
+echo "  /${PREFIX}-design-review  — A second reviewer checks the design (OpenAI Codex if installed, Claude otherwise)"
 echo "  /${PREFIX}-develop        — Developer implements the code"
 echo "  /${PREFIX}-review         — Code Reviewer checks the implementation"
 echo "  /${PREFIX}-audit          — Security Reviewer audits and writes ISRs"

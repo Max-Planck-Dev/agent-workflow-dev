@@ -1,0 +1,32 @@
+--- tests/test_render.py	2026-10-06 10:05:45
++++ tests/test_render.py	2026-10-06 10:24:57
+@@ -32,6 +32,20 @@
+             frame = pd.render(self.run, width, height, color=False, heartbeat=self.heartbeat)
+             self.check_invariants(frame, width, height)
+ 
++    def test_long_phase_name_keeps_the_column_aligned(self):
++        lines = [
++            "[2026-10-06 10:00:00] PIPELINE | Agent: orchestrator | Full pipeline started (sprint 03): x\n",
++            "[2026-10-06 10:10:00] PIPELINE | Agent: orchestrator | Phase design finished → routing to design-review | Reason: ok\n",
++            "[2026-10-06 10:10:05] START | Agent: maxPlanck-design-reviewer\n",
++        ]
++        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-10-06 10:12:00"))
++        for width, height in ((40, 30), (100, 40), (14, 12)):
++            frame = pd.render(run, width, height, color=False)
++            self.check_invariants(frame, width, height)
++        text = "\n".join(pd.render(run, 100, 40, color=False))
++        self.assertIn("▶ design-review", text)
++        self.assertIn("✓ design       ", text)  # padded to the longest phase name
++
+     def test_required_content_narrow(self):
+         frame = pd.render(self.run, 60, 40, color=False, heartbeat=self.heartbeat)
+         text = "\n".join(frame)
+@@ -96,7 +110,7 @@
+         run = pd.parse_log(upto(self.lines, "Pipeline complete (sprint 02)"), "maxPlanck", now=ts("2026-09-20 10:00:00"))
+         text = "\n".join(pd.render(run, 120, 50, color=False))
+         self.assertIn("complete", text)
+-        self.assertIn("✓ develop  r2", text)
++        self.assertRegex(text, r"✓ develop +r2")
+         self.assertIn("review → develop ×1", text)
+         self.assertIn("NEEDS CHANGES", text)
+ 

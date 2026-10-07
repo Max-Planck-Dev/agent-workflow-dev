@@ -23,22 +23,25 @@ Existing features do not get retroactive stories — story numbering starts with
 3. Run `/maxPlanck-design` — Architect reads everything and designs the system
    → Architecture doc with data models, APIs, folder structure in `docs/architecture.md`
 
-4. Run `/maxPlanck-develop` — Developer scaffolds the project and builds features
+4. Run `/maxPlanck-design-review` — a second reviewer checks the design (OpenAI Codex if installed, Claude otherwise)
+   → Proposals in `docs/sprints/sprint-NN/design-review.md`; if there are any, re-run `/maxPlanck-design` so the Architect rules on them
+
+5. Run `/maxPlanck-develop` — Developer scaffolds the project and builds features
    → Code appears in the source directories specified by `docs/architecture.md`
 
-5. Run `/maxPlanck-review` — Code Reviewer checks the implementation
+6. Run `/maxPlanck-review` — Code Reviewer checks the implementation
    → Review report in `docs/sprints/sprint-NN/reviews/`
 
-6. Run `/maxPlanck-audit` — Security Reviewer audits for vulnerabilities and generates ISRs
+7. Run `/maxPlanck-audit` — Security Reviewer audits for vulnerabilities and generates ISRs
    → Security report in `docs/sprints/sprint-NN/security-report.md`
 
-7. Run `/maxPlanck-infra` — DevOps Engineer creates infrastructure and CI/CD pipeline
+8. Run `/maxPlanck-infra` — DevOps Engineer creates infrastructure and CI/CD pipeline
    → Terraform in the infra component's path, CI/CD in each component's workflow (both per the architecture doc's Components table), deployment doc in `docs/devops/`
 
-8. Run `/maxPlanck-test` — QA writes and runs tests
+9. Run `/maxPlanck-test` — QA writes and runs tests
    → Test results in `docs/sprints/sprint-NN/test-plans/`
 
-9. Run `/maxPlanck-sprint` — Scrum Master reviews everything, updates story statuses, and writes the sprint summary + platform proposals
+10. Run `/maxPlanck-sprint` — Scrum Master reviews everything, updates story statuses, and writes the sprint summary + platform proposals
 
 **Or run `/maxPlanck-feeling-lucky` to execute the entire pipeline automatically.**
 
@@ -60,7 +63,7 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
    "Product Owner, write a story for drag-and-drop card reordering"
 
 2. Then walk it through the pipeline:
-   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
+   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
 
 3. Check the log anytime: `cat logs/agent-workflow.log`
 

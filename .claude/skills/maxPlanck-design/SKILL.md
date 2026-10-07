@@ -20,16 +20,17 @@ When invoked by `/maxPlanck-adopt` (the arguments contain a codebase scan summar
 
 ## Your Task
 
-**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/4`, then after finishing each numbered step below log the step number. Each line is its own Bash call made the moment that step completes; a batch of PROGRESS lines written together at the end shows nothing while you work. Never write START or STOP lines yourself, the hooks own those:
+**Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/5`, then after finishing each numbered step below log the step number. Each line is its own Bash call made the moment that step completes; a batch of PROGRESS lines written together at the end shows nothing while you work. Never write START or STOP lines yourself, the hooks own those:
 
 ```bash
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-architect | <step>/4 | <what you are doing now>" >> logs/agent-workflow.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-architect | <step>/5 | <what you are doing now>" >> logs/agent-workflow.log
 ```
 
 1. **Read all inputs** — read `docs/prd.md`, all stories in `docs/stories/`, and all UX specs in `docs/ux/`
-2. **Design the architecture** — write `docs/architecture.md` with the full technical design. The architecture doc is a living document: if it already exists, update the affected sections in place and append a `## Change Log` entry (`| Date | Sprint | Change |`) — never regenerate it from scratch
-3. **Be specific** — include exact folder structures, data model interfaces, API endpoint tables, scaffolding commands
-4. **Log everything** — log each decision to `logs/agent-workflow.log`
+2. **Read this sprint's design review** — determine `<NN>` from `docs/sprints/.current-sprint` and read `docs/sprints/sprint-<NN>/design-review.md` if it exists. Every proposal in it with no row in the `## Design Review Log` of `docs/architecture.md` is open, and is your work order when you were invoked to respond to a design review. If the file does not exist, or nothing is open, this step is a no-op
+3. **Design the architecture** — write `docs/architecture.md` with the full technical design. The architecture doc is a living document: if it already exists, update the affected sections in place and append a `## Change Log` entry (`| Date | Sprint | Change |`) — never regenerate it from scratch. For each open design review proposal decide ACCEPTED, PARTIAL, or REJECTED, apply what you accept, and append one row per proposal to `## Design Review Log` (see Design Review Proposals in your agent definition)
+4. **Be specific** — include exact folder structures, data model interfaces, API endpoint tables, scaffolding commands
+5. **Log everything** — log each decision to `logs/agent-workflow.log`, including one `DECISION` line per design review proposal
 
 ## Architecture Must Include
 
@@ -50,8 +51,11 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-architect | <st
 - API endpoints cover all acceptance criteria from stories
 - Folder structure is specific enough to follow exactly
 - Scaffolding commands are copy-pasteable
+- If this sprint has a design review report, every proposal in it has a row in `## Design Review Log` — none left open
 - All actions logged to `logs/agent-workflow.log`
 
 ## After Completion
 
-Tell the user: "Architecture design complete. Run `/maxPlanck-develop` to have the Developer start building, or `/maxPlanck-sprint` to check overall progress."
+Tell the user: "Architecture design complete. Run `/maxPlanck-design-review` to have the design reviewed before development (by OpenAI Codex when installed, otherwise by Claude), or `/maxPlanck-sprint` to check overall progress."
+
+If you were responding to a design review, say instead: "Design review proposals evaluated — <A> accepted, <P> partial, <R> rejected. Re-run `/maxPlanck-design-review` to confirm, or `/maxPlanck-develop` to start building."
