@@ -1,4 +1,4 @@
-"""plan_review.py: Codex-backed review of the development plan with the Claude fallback."""
+"""plan_review.py: Codex-backed review of one story's development plan with the Claude fallback."""
 
 import json
 import os
@@ -54,39 +54,48 @@ ARCHITECTURE = """# Architecture Document
 Card { id, title }
 """
 
-PLAN = """# Development Plan — Sprint 03
+PLAN = """# Development Plan — Sprint 03 — story-001: Create cards
 
-## Implementation Order
-1. `api`
+**Component(s):** api
 
-## story-001: Create cards
+## Tasks
 | # | Task | Files | Covers AC |
 |---|------|-------|-----------|
 | 1 | modify | `backend/src/cards.ts` | AC1 |
 """
 
+INDEX = """# Development Plan — Sprint 03
+
+## Story Order
+1. story-001 — Create cards
+2. story-002 — Move cards
+"""
+
 
 def proposal(title="Task 1 names a file that does not exist", severity="HIGH"):
-    return {"title": title, "severity": severity, "section": "story-001",
+    return {"title": title, "severity": severity, "section": "Tasks",
             "problem": "backend/src/card.ts is not in the inventory.", "proposal": "Point the task at backend/src/cards.ts."}
 
 
 class PlanReviewRunTests(unittest.TestCase):
-    REPORT = "docs/sprints/sprint-03/plan-review.md"
-    PLAN_PATH = "docs/sprints/sprint-03/dev-plan.md"
+    REPORT = "docs/sprints/sprint-03/plan-reviews/story-001-plan-review.md"
+    PLAN_PATH = "docs/sprints/sprint-03/plans/story-001-plan.md"
+    CURRENT = "docs/sprints/sprint-03/.current-story"
     SAFE = r"^[A-Za-z0-9 .,:;()/_=+@%—-]+$"
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.root = os.path.join(self.tmp, "project")
         self.bin = os.path.join(self.tmp, "bin")
-        for d in ("docs/sprints/sprint-03", "docs/stories", "backend/src", "backend/node_modules/x", "other-client", ".claude"):
+        for d in ("docs/sprints/sprint-03/plans", "docs/stories", "backend/src", "backend/node_modules/x", "other-client", ".claude"):
             os.makedirs(os.path.join(self.root, d))
         os.makedirs(self.bin)
         self.write("docs/sprints/.current-sprint", "03\n")
+        self.write(self.CURRENT, "story-001\n")
         self.write("docs/architecture.md", ARCHITECTURE)
         self.write("docs/prd.md", "# PRD\n")
         self.write("docs/stories/story-001.md", "# Create cards\n")
+        self.write("docs/stories/story-002.md", "# Move cards\n")
         self.write(self.PLAN_PATH, PLAN)
         self.write("backend/src/cards.ts", "export const cards = [];\n")
         self.write("backend/.env", "DB_PASSWORD=hunter2\n")
@@ -121,18 +130,22 @@ class PlanReviewRunTests(unittest.TestCase):
         fields = dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line and not line.startswith(" "))
         return out, fields
 
-    def file_answer(self, answer, reason="Codex CLI not installed", round=None):
-        number = self.status()["rounds"] + 1 if round is None else round
-        return self.run_review(command="file", stdin=json.dumps(answer), extra=("--round", str(number), "--reason", reason),
+    def file_answer(self, answer, reason="Codex CLI not installed", round=None, extra=()):
+        number = self.status(extra)["rounds"] + 1 if round is None else round
+        return self.run_review(command="file", stdin=json.dumps(answer), extra=(*extra, "--round", str(number), "--reason", reason),
                                path=os.path.join(self.tmp, "empty"))
 
-    def status(self):
-        return json.loads(self.run_review(command="status")[0].stdout)
+    def status(self, extra=()):
+        return json.loads(self.run_review(command="status", extra=extra)[0].stdout)
 
-    def decide(self, *rows):
+    def staged(self):
+        with open(self.log + ".files") as fh:
+            return sorted(l.strip()[2:] for l in fh if l.strip())
+
+    def decide(self, *rows, plan_path=None):
         table = "\n## Plan Review Log\n| Proposal | Date | Disposition | Rationale / What changed |\n|---|---|---|---|\n"
         table += "".join(f"| {pid} | 2026-10-16 | {disp} | because |\n" for pid, disp in rows)
-        self.write(self.PLAN_PATH, PLAN + table)
+        self.write(plan_path or self.PLAN_PATH, PLAN + table)
 
     def report_exists(self):
         return os.path.exists(os.path.join(self.root, self.REPORT))
@@ -145,23 +158,23 @@ class PlanReviewRunTests(unittest.TestCase):
 
     # ── Codex reviews ──
 
-    def test_first_round_files_proposals_with_stable_ids(self):
+    def test_first_round_files_proposals_with_stable_story_scoped_ids(self):
         out, f = self.run_review(answer={"summary": "One gap.", "proposals": [proposal(), proposal("Order web after api", "LOW")]})
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertEqual((f["VERDICT"], f["OPEN"], f["REPORT"]), ("CHANGES PROPOSED", "PR-03-1,PR-03-2", self.REPORT))
+        self.assertEqual((f["VERDICT"], f["STORY"], f["OPEN"], f["REPORT"]), ("CHANGES PROPOSED", "story-001", "PR-03-001-1,PR-03-001-2", self.REPORT))
         report = self.read(self.REPORT)
-        self.assertIn("# Plan Review — Sprint 03", report)
+        self.assertIn("# Plan Review — Sprint 03 — story-001", report)
+        self.assertIn("**Story:** story-001", report)
         self.assertIn("**Verdict:** CHANGES PROPOSED", report)
         self.assertIn("Reviewer: OpenAI Codex (codex-cli 9.9.9, read-only sandbox)", report)
-        self.assertIn("| PR-03-1 | HIGH | Task 1 names a file that does not exist | story-001 |", report)
-        self.assertIn("`## Plan Review Log` of `docs/sprints/sprint-03/dev-plan.md`", report)
+        self.assertIn("| PR-03-001-1 | HIGH | Task 1 names a file that does not exist | Tasks |", report)
+        self.assertIn("`## Plan Review Log` of `docs/sprints/sprint-03/plans/story-001-plan.md`", report)
 
-    def test_codex_gets_the_plan_the_docs_and_an_inventory_but_no_code(self):
+    def test_codex_gets_the_story_plan_the_index_the_docs_and_an_inventory_but_no_code(self):
+        self.write("docs/sprints/sprint-03/dev-plan.md", INDEX)
         self.run_review(answer={"summary": "ok", "proposals": []})
-        with open(self.log + ".files") as fh:
-            files = sorted(l.strip()[2:] for l in fh if l.strip())
-        self.assertEqual(files, ["code-inventory.txt", "docs/architecture.md", "docs/prd.md",
-                                 "docs/sprints/sprint-03/dev-plan.md", "docs/stories/story-001.md"])
+        self.assertEqual(self.staged(), ["code-inventory.txt", "docs/architecture.md", "docs/prd.md", "docs/sprints/sprint-03/dev-plan.md",
+                                         "docs/sprints/sprint-03/plans/story-001-plan.md", "docs/stories/story-001.md", "docs/stories/story-002.md"])
         with open(self.log + ".inventory") as fh:
             lines = fh.read().splitlines()
         self.assertTrue(lines[0].startswith("# Source files that exist today"))
@@ -171,25 +184,61 @@ class PlanReviewRunTests(unittest.TestCase):
         with open(self.log + ".prompt") as fh:
             prompt = fh.read()
         self.assertIn("code-inventory.txt", prompt)
-        self.assertIn("review round 1 of sprint 03", prompt)
+        self.assertIn("docs/sprints/sprint-03/plans/story-001-plan.md", prompt)
+        self.assertIn("review round 1 of the plan for story-001 (sprint 03)", prompt)
         self.assertNotIn("Plan Review Log", prompt)
 
     def test_second_round_continues_ids_and_closes_decided_proposals(self):
         self.run_review(answer={"summary": "s", "proposals": [proposal(), proposal("Second", "LOW")]})
-        self.decide(("PR-03-1", "ACCEPTED"), ("PR-03-2", "REJECTED"))
+        self.decide(("PR-03-001-1", "ACCEPTED"), ("PR-03-001-2", "REJECTED"))
         _, f = self.run_review(answer={"summary": "s2", "proposals": [proposal("Third", "MEDIUM")]})
-        self.assertEqual((f["ROUND"], f["OPEN"]), ("2", "PR-03-3"))
+        self.assertEqual((f["ROUND"], f["OPEN"]), ("2", "PR-03-001-3"))
         with open(self.log + ".prompt") as fh:
             self.assertIn("Plan Review Log", fh.read())
-        self.decide(("PR-03-1", "ACCEPTED"), ("PR-03-2", "REJECTED"), ("PR-03-3", "PARTIAL"))
+        self.decide(("PR-03-001-1", "ACCEPTED"), ("PR-03-001-2", "REJECTED"), ("PR-03-001-3", "PARTIAL"))
         _, f = self.run_review(answer={"summary": "s3", "proposals": []})
         self.assertEqual((f["VERDICT"], f["ROUND"], f["OPEN"]), ("APPROVED", "3", ""))
 
+    def test_each_story_has_its_own_report_rounds_and_ids(self):
+        self.run_review(answer={"summary": "s", "proposals": [proposal()]})
+        plan2 = "docs/sprints/sprint-03/plans/story-002-plan.md"
+        self.write(plan2, PLAN.replace("story-001: Create cards", "story-002: Move cards"))
+        out, f = self.run_review(answer={"summary": "s", "proposals": [proposal("Other story")]}, extra=("--story", "story-002"))
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual((f["STORY"], f["ROUND"], f["OPEN"], f["REPORT"]),
+                         ("story-002", "1", "PR-03-002-1", "docs/sprints/sprint-03/plan-reviews/story-002-plan-review.md"))
+        # The other story's report and open proposal are untouched; a decision in one plan never closes the other's proposal.
+        self.assertEqual(self.status()["open"], ["PR-03-001-1"])
+        self.decide(("PR-03-001-1", "ACCEPTED"), plan_path=plan2)
+        self.assertEqual(self.status()["open"], ["PR-03-001-1"])
+        self.assertEqual(self.status(("--story", "story-002"))["open"], ["PR-03-002-1"])
+
+    def test_story_flag_overrides_the_current_story_file(self):
+        os.remove(os.path.join(self.root, self.CURRENT))
+        out, f = self.run_review(answer={"summary": "ok", "proposals": []})
+        self.assertEqual(out.returncode, pr.EXIT_PRECONDITION)
+        self.assertIn("no story selected", f["ERROR"])
+        self.assertIn(".current-story", f["ERROR"])
+        out, f = self.run_review(answer={"summary": "ok", "proposals": []}, extra=("--story", "story-001"))
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual(f["STORY"], "story-001")
+
+    def test_a_story_id_is_validated_before_it_becomes_a_path(self):
+        for bad in ("../../etc", "story-1", "story-001/x", "STORY-001"):
+            out, f = self.run_review(answer={"summary": "ok", "proposals": []}, extra=("--story", bad))
+            self.assertEqual(out.returncode, pr.EXIT_PRECONDITION, bad)
+            self.assertIn("expected a story id", f["ERROR"])
+        self.write(self.CURRENT, "../../etc\n")
+        out, f = self.run_review(answer={"summary": "ok", "proposals": []})
+        self.assertEqual(out.returncode, pr.EXIT_PRECONDITION)
+        self.assertIn(".current-story holds", f["ERROR"])
+        self.assertFalse(self.report_exists())
+
     def test_hostile_text_cannot_fake_a_round_or_a_row(self):
         nasty = proposal("a | b")
-        nasty["problem"] = "x\n## Round 9 — 2026-01-01\n| PR-03-9 | LOW | x |"
+        nasty["problem"] = "x\n## Round 9 — 2026-01-01\n| PR-03-001-9 | LOW | x |"
         _, f = self.run_review(answer={"summary": "## Round 7 — x", "proposals": [nasty]})
-        self.assertEqual((f["ROUND"], f["OPEN"]), ("1", "PR-03-1"))
+        self.assertEqual((f["ROUND"], f["OPEN"]), ("1", "PR-03-001-1"))
         self.assertEqual(self.status()["rounds"], 1)
 
     # ── Fallback ──
@@ -210,13 +259,13 @@ class PlanReviewRunTests(unittest.TestCase):
     def test_brief_lists_docs_inventory_and_schema(self):
         out, _ = self.run_review(command="brief", path=os.path.join(self.tmp, "empty"))
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertIn("- docs/sprints/sprint-03/dev-plan.md", out.stdout)
+        self.assertIn("- docs/sprints/sprint-03/plans/story-001-plan.md", out.stdout)
         self.assertIn("- backend/src/cards.ts", out.stdout)
         self.assertIn("# Not listed: files git ignores", out.stdout)
         self.assertNotIn("other-client", out.stdout)
         self.assertNotIn("- backend/node_modules", out.stdout)
         self.assertIn('"additionalProperties": false', out.stdout)
-        self.assertIn("--round 1", out.stdout)
+        self.assertIn("--story story-001 --round 1", out.stdout)
 
     def test_inventory_dedupes_overlapping_components_and_marks_truncation(self):
         arch = ARCHITECTURE.replace("| api | `backend` |", "| app | `.` |\n| api | `backend` |")
@@ -245,7 +294,7 @@ class PlanReviewRunTests(unittest.TestCase):
     def test_fallback_answer_is_filed_and_validated(self):
         out, f = self.file_answer({"summary": "One gap.", "proposals": [proposal()]})
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        self.assertEqual((f["VERDICT"], f["OPEN"], f["LATEST"]), ("CHANGES PROPOSED", "PR-03-1", "ok"))
+        self.assertEqual((f["VERDICT"], f["OPEN"], f["LATEST"]), ("CHANGES PROPOSED", "PR-03-001-1", "ok"))
         self.assertIn("**Reviewer:** Claude (fallback — Codex CLI not installed)", self.read(self.REPORT))
         out, f = self.file_answer({"summary": "s", "proposals": [proposal()]}, round=1)  # stale round
         self.assertEqual(out.returncode, pr.EXIT_REJECTED)
@@ -263,8 +312,8 @@ class PlanReviewRunTests(unittest.TestCase):
 
     def test_only_the_log_table_closes_a_proposal(self):
         self.run_review(answer={"summary": "s", "proposals": [proposal(), proposal("Second")]})
-        self.write(self.PLAN_PATH, PLAN + "\nWe considered PR-03-1.\n\n## Plan Review Log\n| P | D | Disposition | R |\n|---|---|---|---|\n| PR-03-2 | x | maybe | hmm |\n")
-        self.assertEqual(self.status()["open"], ["PR-03-1", "PR-03-2"])
+        self.write(self.PLAN_PATH, PLAN + "\nWe considered PR-03-001-1.\n\n## Plan Review Log\n| P | D | Disposition | R |\n|---|---|---|---|\n| PR-03-001-2 | x | maybe | hmm |\n")
+        self.assertEqual(self.status()["open"], ["PR-03-001-1", "PR-03-001-2"])
 
     def link_docs_into_component(self):
         """A project whose docs live in a component repo links them in: a
@@ -282,10 +331,8 @@ class PlanReviewRunTests(unittest.TestCase):
         os.symlink("/etc/hosts", os.path.join(self.root, "docs", "ux", "story-001-design.md"))
         out, _ = self.run_review(answer={"summary": "ok", "proposals": []})
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
-        with open(self.log + ".files") as fh:
-            files = sorted(l.strip()[2:] for l in fh if l.strip())
-        self.assertEqual(files, ["code-inventory.txt", "docs/architecture.md", "docs/prd.md",
-                                 "docs/sprints/sprint-03/dev-plan.md", "docs/stories/story-001.md"])
+        self.assertEqual(self.staged(), ["code-inventory.txt", "docs/architecture.md", "docs/prd.md",
+                                         "docs/sprints/sprint-03/plans/story-001-plan.md", "docs/stories/story-001.md", "docs/stories/story-002.md"])
         brief = self.run_review(command="brief", path=os.path.join(self.tmp, "empty"))[0].stdout
         self.assertIn("- docs/prd.md", brief)
         self.assertIn("- docs/stories/story-001.md", brief)
@@ -294,23 +341,28 @@ class PlanReviewRunTests(unittest.TestCase):
     def test_the_plan_may_be_a_link_inside_the_project_but_not_outside(self):
         real = os.path.join(self.root, "backend", "docs")
         os.makedirs(real)
-        shutil.move(os.path.join(self.root, self.PLAN_PATH), os.path.join(real, "dev-plan.md"))
+        shutil.move(os.path.join(self.root, self.PLAN_PATH), os.path.join(real, "story-001-plan.md"))
         plan = os.path.join(self.root, self.PLAN_PATH)
-        os.symlink(os.path.join("..", "..", "..", "backend", "docs", "dev-plan.md"), plan)
+        os.symlink(os.path.join("..", "..", "..", "..", "backend", "docs", "story-001-plan.md"), plan)
         out, _ = self.run_review(answer={"summary": "ok", "proposals": []})
         self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
         os.unlink(plan)
         os.symlink("/etc/hosts", plan)
         out, f = self.run_review(answer={"summary": "ok", "proposals": []})
         self.assertEqual(out.returncode, pr.EXIT_PRECONDITION)
-        self.assertIn("dev-plan.md", f["ERROR"])
+        self.assertIn("story-001-plan.md", f["ERROR"])
 
     def test_preconditions(self):
         os.remove(os.path.join(self.root, self.PLAN_PATH))
         out, f = self.run_review(answer={"summary": "s", "proposals": []})
         self.assertEqual(out.returncode, pr.EXIT_PRECONDITION)
-        self.assertIn("dev-plan.md", f["ERROR"])
+        self.assertIn("plans/story-001-plan.md", f["ERROR"])
         self.write(self.PLAN_PATH, PLAN)
+        os.remove(os.path.join(self.root, "docs", "stories", "story-001.md"))
+        out, f = self.run_review(answer={"summary": "s", "proposals": []})
+        self.assertEqual(out.returncode, pr.EXIT_PRECONDITION)
+        self.assertIn("docs/stories/story-001.md", f["ERROR"])
+        self.write("docs/stories/story-001.md", "# Create cards\n")
         os.remove(os.path.join(self.root, "docs", "architecture.md"))
         out, f = self.run_review(answer={"summary": "s", "proposals": []})
         self.assertEqual(out.returncode, pr.EXIT_PRECONDITION)
@@ -322,6 +374,13 @@ class StateTests(unittest.TestCase):
         self.assertEqual(pr.verdict(1, True), "CHANGES PROPOSED")
         self.assertEqual(pr.verdict(0, True), "APPROVED")
         self.assertEqual(pr.verdict(0, False), "UNAVAILABLE")
+
+    def test_ids_are_scoped_to_sprint_and_story(self):
+        self.assertEqual(pr.id_stem("03", "story-001"), "PR-03-001")
+        self.assertEqual(pr.id_stem("12", "story-1234"), "PR-12-1234")
+        report = "| PR-03-001-1 | HIGH | a |\n| PR-03-002-1 | LOW | b |\n| PR-03-001-2 | LOW | c |\n"
+        self.assertEqual([p[0] for p in pr.filed(report, "03", "story-001")], ["PR-03-001-1", "PR-03-001-2"])
+        self.assertEqual([p[0] for p in pr.filed(report, "03", "story-002")], ["PR-03-002-1"])
 
     def test_script_is_prefix_free(self):
         with open(PLAN_REVIEW, encoding="utf-8") as fh:

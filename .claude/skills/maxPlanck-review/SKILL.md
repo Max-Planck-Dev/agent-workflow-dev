@@ -1,6 +1,6 @@
 ---
 name: maxPlanck-review
-description: Run code review — a second reviewer (OpenAI Codex when its CLI is installed, otherwise Claude) checks the implementation for quality, architecture adherence, and best practices.
+description: Run code review — a second reviewer (OpenAI Codex when its CLI is installed, otherwise Claude) checks the story just implemented (or every story with `all`) for quality, architecture adherence, and best practices.
 user-invocable: true
 context: fork
 agent: maxPlanck-code-reviewer
@@ -11,6 +11,8 @@ agent: maxPlanck-code-reviewer
 You are the **Code Reviewer**. The user wants the implementation reviewed.
 
 OpenAI Codex does the review when its CLI is installed and working; otherwise you do it yourself, as the fallback reviewer. Either way the review helper writes the reports.
+
+Stories are built and reviewed one at a time. This run reviews **one story**: the one named in the request (`/maxPlanck-review story-003`), otherwise the one in `docs/sprints/sprint-<NN>/.current-story`. `/maxPlanck-review all` reviews every story that has code — the re-check after a sprint-level fix pass. Translate that into the helper's flags: a named story → `--story <id>`; `all` → `--all`; nothing → no flag (the helper reads `.current-story`, and reviews everything when there is none).
 
 ## Your Task
 
@@ -31,7 +33,7 @@ HELPER="${CLAUDE_SKILL_DIR}/code_review.py"
 2. **Ask Codex** — this is the slow step, so log its PROGRESS line *before* starting. From the project root, with the Bash tool timeout set to 600000 ms:
 
    ```bash
-   python3 "$HELPER" run --skip-if-exists .claude/maxPlanck-no-codex
+   python3 "$HELPER" run [--story <id> | --all] --skip-if-exists .claude/maxPlanck-no-codex
    ```
 
    (`.claude/maxPlanck-no-codex` is how a project says its code and docs must not be sent to OpenAI: when that file exists the helper does not call Codex.)
@@ -39,25 +41,26 @@ HELPER="${CLAUDE_SKILL_DIR}/code_review.py"
    - Exit status 0 — Codex reviewed and the reports are filed. Skip step 3
    - Exit status 3 — Codex did not review: it is not installed, it is turned off for this project, the code is too large to send, or the run failed. The `FALLBACK=` line says which, and nothing was written: you are the reviewer, go to step 3 with that reason
    - Exit status 2 — relay the `ERROR=` line to the user and stop (for a missing architecture doc or stories: run the earlier phases first)
-3. **Fallback: you review** — only when Codex did not. Run `python3 "$HELPER" brief`, follow it as your agent definition's When You Are the Reviewer section describes, and file your answer with the `FALLBACK=` reason from step 2, copied exactly, in single quotes:
+3. **Fallback: you review** — only when Codex did not. Run `python3 "$HELPER" brief [--story <id> | --all]`, follow it as your agent definition's When You Are the Reviewer section describes, and file your answer with the same scope flag and the `FALLBACK=` reason from step 2, copied exactly, in single quotes:
 
    ```bash
-   python3 "$HELPER" file --reason '<the FALLBACK reason>' <<'CODE_REVIEW_JSON'
+   python3 "$HELPER" file [--story <id> | --all] --reason '<the FALLBACK reason>' <<'CODE_REVIEW_JSON'
    <your JSON answer>
    CODE_REVIEW_JSON
    ```
 
    If it is rejected (exit status 4), fix what the `ERROR=` line names and file again, at most twice more; after that tell the user the review could not be filed and why
 4. **Read what was filed** — the `REPORTS=` line lists the files under `docs/sprints/sprint-<NN>/reviews/`. Read them and confirm each names the right reviewer and story. Do not edit them
-5. **Log everything** — log who reviewed (and why, if it was the fallback), the stories reviewed, and the verdict to `logs/agent-workflow.log`
+5. **Log everything** — log who reviewed (and why, if it was the fallback), the story (or stories) reviewed, and the verdict to `logs/agent-workflow.log`
 
 ## What the Review Covers
 
-The code in the in-scope component paths from the `## Components` table of `docs/architecture.md` (never anything under `### Excluded Paths`; the whole project root as component `app` when there is no table), checked against `docs/architecture.md`, `docs/stories/`, and `docs/ux/`, for each story that has an implementation:
+The code in the in-scope component paths from the `## Components` table of `docs/architecture.md` (never anything under `### Excluded Paths`; the whole project root as component `app` when there is no table), checked against `docs/architecture.md`, `docs/stories/`, `docs/ux/` and the story's development plan in `docs/sprints/sprint-<NN>/plans/`, for the story under review (every story with an implementation in an `all` run):
 
 - [ ] Follows architecture doc folder structure
 - [ ] Data models match architecture spec
 - [ ] API endpoints match contracts
+- [ ] Implements the story's acceptance criteria and the tasks of its plan
 - [ ] Language-specific best practices followed (as defined by the tech stack in `docs/architecture.md`)
 - [ ] Framework best practices followed for each reviewed component, per its row in the `## Components` table
 - [ ] Changes are confined to the components the story targets
@@ -69,7 +72,7 @@ Security-specific issues (XSS, injection, secrets, auth) belong to the Security 
 
 ## Acceptance Criteria for This Phase
 
-- A report exists in `docs/sprints/sprint-<NN>/reviews/` for each story with an implementation, written by the helper and not edited afterwards, naming its reviewer
+- A report exists in `docs/sprints/sprint-<NN>/reviews/` for the story under review (for each story with an implementation in an `all` run), written by the helper and not edited afterwards, naming its reviewer
 - Each report has findings categorized by severity (critical/warning/suggestion), each referencing a specific file:line location
 - Each report's verdict is clearly stated: APPROVED or NEEDS CHANGES (NEEDS CHANGES whenever a critical finding exists — the helper derives it)
 - When the fallback reviewed, the reviewer line says why Codex did not
@@ -78,8 +81,9 @@ Security-specific issues (XSS, injection, secrets, auth) belong to the Security 
 
 ## After Completion
 
-Say who reviewed in every case (e.g. "reviewed by OpenAI Codex" / "reviewed by Claude — Codex CLI not installed").
+Say which story and who reviewed in every case (e.g. "story-003 reviewed by OpenAI Codex" / "reviewed by Claude — Codex CLI not installed").
 
-- If `VERDICT=APPROVED`: Tell the user "Code review passed. Run `/maxPlanck-audit` to run the security audit."
+- If `VERDICT=APPROVED` for one story: Tell the user "Code review of `<story>` passed. Run `/maxPlanck-plan` to plan the next story — or, if this was the last story of the sprint, `/maxPlanck-audit` to run the security audit."
+- If `VERDICT=APPROVED` for an `all` run: Tell the user "Code review passed. Run `/maxPlanck-audit` to run the security audit."
 - If `VERDICT=NEEDS CHANGES`: Tell the user "Code review found critical issues — see `docs/sprints/sprint-<NN>/reviews/`. Run `/maxPlanck-develop` again to address the findings, then re-run `/maxPlanck-review`."
-- If `VERDICT=NOTHING REVIEWED`: Tell the user which stories have no implementation yet (the `NOT_REVIEWED=` line) and suggest `/maxPlanck-develop`.
+- If `VERDICT=NOTHING REVIEWED`: Tell the user which story has no implementation yet (the `NOT_REVIEWED=` line) and suggest `/maxPlanck-develop`.

@@ -73,10 +73,10 @@ Thirteen specialized AI agents — Product Owner, UX Designer, Architect, Design
 | `/maxPlanck-ux` | UX Designer creates wireframes and component specs |
 | `/maxPlanck-design` | Architect designs the technical system |
 | `/maxPlanck-design-review` | A second reviewer checks the design — OpenAI Codex if installed, Claude otherwise — and the Architect accepts or rejects each proposal |
-| `/maxPlanck-plan` | Tech Lead writes the development plan — implementation order, tasks per story, files to touch, verification per component — and rules on plan review proposals |
-| `/maxPlanck-plan-review` | A second reviewer checks the plan — OpenAI Codex if installed, Claude otherwise — and the Tech Lead accepts or rejects each proposal |
-| `/maxPlanck-develop` | Developer scaffolds the project and implements features, following the plan |
-| `/maxPlanck-review` | Code Reviewer audits the implementation |
+| `/maxPlanck-plan [story-NNN]` | Tech Lead plans one story — tasks, files to touch, verification per component — (and the sprint's story order, the first time) and rules on plan review proposals |
+| `/maxPlanck-plan-review [story-NNN]` | A second reviewer checks that story's plan — OpenAI Codex if installed, Claude otherwise — and the Tech Lead accepts or rejects each proposal |
+| `/maxPlanck-develop [story-NNN \| all]` | Developer builds that story from its plan (`all`: a fix pass across the sprint from the feedback reports) |
+| `/maxPlanck-review [story-NNN \| all]` | Code Reviewer audits that story's implementation (`all`: every story with code) |
 | `/maxPlanck-audit` | Security Reviewer audits and writes Infrastructure Security Requirements |
 | `/maxPlanck-infra` | DevOps creates IaC and CI/CD pipelines |
 | `/maxPlanck-test` | QA writes and runs tests |
@@ -113,9 +113,9 @@ The same arrangement reviews the **code**: `/maxPlanck-review` hands the in-scop
 
 **What leaves your machine with Codex:** your design docs (architecture, PRD, stories, UX specs) and, for the code review, **the source code of the in-scope components** (never anything under `### Excluded Paths`, dependency or build folders) go to OpenAI through your own Codex login. Codex is given a temporary copy of those files only and runs in its read-only sandbox — but that sandbox restricts writing, not reading, so treat it as reduced exposure rather than isolation. To keep a project on Claude even with Codex installed, create an empty `.claude/maxPlanck-no-codex` file in it — it turns off both reviews.
 
-### A plan before the code
+### One story at a time: plan, review the plan, build, review the code
 
-Once the design is approved, the **Tech Lead** (`/maxPlanck-plan`) turns it into a development plan at `docs/sprints/sprint-NN/dev-plan.md`: which component first, the tasks per story with the files they touch, which acceptance criterion each task covers, and how each component is verified. The plan gets the same second opinion as the design: `/maxPlanck-plan-review` hands it — with the design docs and an inventory of the source files that exist (paths only) — to Codex, or to the Claude Plan Reviewer when Codex cannot, and files proposals under stable `PR-NN-n` IDs in `docs/sprints/sprint-NN/plan-review.md`. The Tech Lead accepts, partially accepts, or rejects each one in the plan's `## Plan Review Log`, for at most three rounds. The Developer then follows the approved plan. When review, audit, or QA send the Developer back, the failing report is the work order and the plan is not redone.
+Once the design is approved, the stories are built **one at a time**. The **Tech Lead** (`/maxPlanck-plan`) first writes the sprint's plan index (`docs/sprints/sprint-NN/dev-plan.md`: which stories, in what order, what scaffolding is pending), then plans the first story in `docs/sprints/sprint-NN/plans/story-NNN-plan.md`: the tasks with the files they touch, which acceptance criterion each task covers, and how each component is verified. That plan gets the same second opinion as the design: `/maxPlanck-plan-review` hands it — with the design docs and an inventory of the source files that exist (paths only) — to Codex, or to the Claude Plan Reviewer when Codex cannot, and files proposals under stable `PR-NN-SSS-n` IDs in `docs/sprints/sprint-NN/plan-reviews/story-NNN-plan-review.md`. The Tech Lead accepts, partially accepts, or rejects each one in that plan's `## Plan Review Log`, for at most three rounds. The Developer (`/maxPlanck-develop`) then builds that story — and only that story — and `/maxPlanck-review` reviews its code; once it passes, the Tech Lead plans the next story. The story in progress lives in `docs/sprints/sprint-NN/.current-story`, so the four commands can be run without arguments in sequence (or with `story-NNN` to pick one). When the code review sends the Developer back, it is for that story; when the security audit or QA do (they run once per sprint, after the last story), `/maxPlanck-develop all` and `/maxPlanck-review all` run a fix pass across the sprint. In every case the failing report is the work order and the plan is not redone.
 
 ### Which model runs each agent
 

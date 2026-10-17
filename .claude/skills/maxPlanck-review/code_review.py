@@ -7,17 +7,23 @@ lives here rather than in an agent's prose: which stories were reviewed, the
 severity vocabulary, and the verdict (NEEDS CHANGES when any finding is
 critical, APPROVED otherwise).
 
-    python3 code_review.py run    [--root DIR] [--timeout SECONDS] [--skip-if-exists FILE]
-    python3 code_review.py brief  [--root DIR]
-    python3 code_review.py file   [--root DIR] --reason TEXT < answer.json
-    python3 code_review.py status [--root DIR]
+    python3 code_review.py run    [--root DIR] [--story story-NNN | --all] [--timeout SECONDS] [--skip-if-exists FILE]
+    python3 code_review.py brief  [--root DIR] [--story story-NNN | --all]
+    python3 code_review.py file   [--root DIR] [--story story-NNN | --all] --reason TEXT < answer.json
+    python3 code_review.py status [--root DIR] [--story story-NNN | --all]
+
+Stories are built one at a time, so a review normally covers one story: the
+one named with --story, or else the one the plan phase recorded in
+docs/sprints/sprint-NN/.current-story. The answer may then name no other
+story. --all reviews every story that has code (the fix pass after the
+security audit or QA, or a project without a current story).
 
 `run` asks the OpenAI Codex CLI for the review and files the reports. Codex
 works on a temporary copy of the in-scope component paths (per the
 `## Components` table of docs/architecture.md, never anything under
-`### Excluded Paths`) plus the architecture doc, the stories, the UX specs and
-earlier review reports, in its read-only sandbox, and must answer as JSON
-matching a schema. When Codex cannot review (not installed, turned off for the
+`### Excluded Paths`) plus the architecture doc, the stories, the UX specs,
+this sprint's development plans and earlier review reports, in its read-only
+sandbox, and must answer as JSON matching a schema. When Codex cannot review (not installed, turned off for the
 project with --skip-if-exists, not logged in, timeout, unusable answer, code
 too large to send) nothing is written and the exit status says to use the
 fallback reviewer.
@@ -80,6 +86,7 @@ EXIT_REJECTED = 4
 
 SPRINT_RE = re.compile(r"^\d{2,3}$")
 STORY_RE = re.compile(r"^story-\d{3,}$")
+PLAN_FILE_RE = re.compile(r"^story-\d{3,}-plan\.md$")
 CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
 UNSAFE_REASON_RE = re.compile(r"[^A-Za-z0-9 .,:;()/_=+@%—-]+")
@@ -149,15 +156,16 @@ Everything you need is in this directory:
 - docs/architecture.md — the design the code must follow (folder structure, data models, API contracts, tech stack per component)
 - docs/stories/ — the user stories with their acceptance criteria
 - docs/ux/ — the UX specs, if any
+- docs/sprints/sprint-{sprint}/plans/ — the development plan per story (tasks, files, verification), if any; a story's code should implement its plan
 - docs/sprints/*/reviews/ — earlier review reports, if any; a story reviewed before gets a note on whether those findings were resolved
 - the source code, one directory per component:
 {components}
 
 Review these files only; do not look for the rest of the project.
 
-Review the code of every story that has an implementation. For each one, check:
+{focus}For each story you review, check:
 1. It follows the architecture doc's folder structure, data models and API contracts.
-2. It implements the story's acceptance criteria.
+2. It implements the story's acceptance criteria — and the tasks of its plan, when docs/sprints/sprint-{sprint}/plans/ has one.
 3. Language- and framework-specific best practices, per that component's stack in the architecture doc.
 4. Changes are confined to the components the story targets.
 5. No code duplication, consistent naming, error handling where needed.
@@ -166,8 +174,13 @@ Severity means impact: "critical" the story does not work, violates the architec
 
 Security issues (XSS, injection, secrets, auth) belong to a separate security review: put them under flagged_for_security with a location and a one-line concern, not among the findings.
 
-A story with no implementation yet goes under not_reviewed with the reason. Review every story that has code; an empty findings list is a valid review of a story whose code is sound. This is sprint {sprint}.
+A story with no implementation yet goes under not_reviewed with the reason. An empty findings list is a valid review of a story whose code is sound. This is sprint {sprint}.
 """
+
+FOCUS_ONE = """This run reviews {story} only — the story the developer has just implemented. The rest of the code is context: read whatever you need to judge {story}, but report findings only for {story}, and name no other story in your answer. If {story} has no implementation yet, list it under not_reviewed.
+
+"""
+FOCUS_ALL = "Review the code of every story that has an implementation. "
 
 FALLBACK_INSTRUCTIONS = """
 Files to read — every one of them, in full (read a large file in parts):
@@ -179,7 +192,7 @@ Answer with one JSON object and nothing else, matching this schema exactly (no e
 
 {schema}
 
-File it with:  file --reason '<why Codex did not review>'
+File it with:  file {scope}--reason '<why Codex did not review>'
 """
 
 
@@ -268,8 +281,27 @@ def current_sprint(root: str) -> str:
     return sprint
 
 
+def sprint_dir(root: str, sprint: str) -> str:
+    return os.path.join(root, "docs", "sprints", f"sprint-{sprint}")
+
+
 def reviews_dir(root: str, sprint: str) -> str:
-    return os.path.join(root, "docs", "sprints", f"sprint-{sprint}", "reviews")
+    return os.path.join(sprint_dir(root, sprint), "reviews")
+
+
+def current_story(root: str, sprint: str, explicit: str, everything: bool) -> Optional[str]:
+    """The one story this run reviews, or None for every story with code:
+    --story, else the sprint's .current-story (written by the plan phase),
+    else everything. --all is everything whatever the file says."""
+    if everything:
+        return None
+    where = f"docs/sprints/sprint-{sprint}/.current-story"
+    story = explicit or read(os.path.join(sprint_dir(root, sprint), ".current-story")).strip()
+    if not story:
+        return None
+    if not STORY_RE.match(story):
+        raise Precondition(f"{'--story' if explicit else where} holds {story!r}, expected a story id like story-001")
+    return story
 
 
 def stories(root: str) -> Dict[str, str]:
@@ -431,6 +463,14 @@ def doc_files(root: str, sprint: str, architecture: str) -> List[str]:
                 found += [os.path.relpath(os.path.join(base, f), root) for f in sorted(files) if ok(os.path.join(base, f))]
     sprints = os.path.join(root, "docs", "sprints")
     if os.path.isdir(sprints) and doc_link_ok(sprints, roots):
+        # This sprint's plans: what the code was supposed to implement.
+        index = os.path.join(sprint_dir(root, sprint), "dev-plan.md")
+        if ok(index):
+            found.append(os.path.relpath(index, root))
+        plans = os.path.join(sprint_dir(root, sprint), "plans")
+        if os.path.isdir(plans) and doc_link_ok(plans, roots):
+            found += [os.path.relpath(os.path.join(plans, f), root) for f in sorted(os.listdir(plans))
+                      if PLAN_FILE_RE.match(f) and ok(os.path.join(plans, f))]
         for folder in sorted(os.listdir(sprints)):
             reviews = os.path.join(sprints, folder, "reviews")
             if os.path.isdir(reviews) and doc_link_ok(reviews, roots):
@@ -510,10 +550,11 @@ def ask_codex(codex: str, staged: str, work: str, prompt: str, timeout: int) -> 
     return data, ""
 
 
-def invalid(data, known: Dict[str, str], must_cover: List[str] = ()) -> Optional[str]:
+def invalid(data, known: Dict[str, str], must_cover: List[str] = (), only: Optional[str] = None) -> Optional[str]:
     """Why the answer cannot be filed, or None. `must_cover` lists the stories
     that already have a report this sprint: each must be re-reviewed or listed
-    as not reviewed, so a stale verdict never survives a run by omission."""
+    as not reviewed, so a stale verdict never survives a run by omission.
+    `only` is the one story a per-story run may name."""
     if not isinstance(data, dict):
         return "not an object"
     if set(data) - set(SCHEMA["properties"]):
@@ -529,6 +570,8 @@ def invalid(data, known: Dict[str, str], must_cover: List[str] = ()) -> Optional
         sid = item.get("story")
         if not isinstance(sid, str) or sid not in known:
             return f"review {i} names an unknown story ({sid!r}); known: {', '.join(known) or 'none'}"
+        if only and sid != only:
+            return f"this run reviews {only} only, not {sid}"
         if sid in seen:
             return f"{sid} is reviewed twice"
         seen.add(sid)
@@ -556,6 +599,8 @@ def invalid(data, known: Dict[str, str], must_cover: List[str] = ()) -> Optional
             return f"not_reviewed {i} must have a story and a reason"
         if item["story"] not in known:
             return f"not_reviewed {i} names an unknown story ({item['story']!r})"
+        if only and item["story"] != only:
+            return f"this run reviews {only} only, not {item['story']}"
         if item["story"] in seen:
             return f"{item['story']} is both reviewed and not reviewed"
         skipped.add(item["story"])
@@ -634,7 +679,7 @@ def render(review: dict, title: str, sprint: str, date: str, reviewer: str, flag
     return "\n".join(lines) + "\n"
 
 
-def file_reports(root: str, sprint: str, known: Dict[str, str], reviewer: str, answer: dict) -> int:
+def file_reports(root: str, sprint: str, story: Optional[str], known: Dict[str, str], reviewer: str, answer: dict) -> int:
     date = time.strftime("%Y-%m-%d")
     directory = reviews_dir(root, sprint)
     os.makedirs(directory, exist_ok=True)
@@ -663,6 +708,7 @@ def file_reports(root: str, sprint: str, known: Dict[str, str], reviewer: str, a
     not_reviewed = ",".join(n["story"] + " (" + plain(n["reason"]) + ")" for n in answer["not_reviewed"])
     critical = sum(1 for r in answer["reviews"] for f in r["findings"] if f["severity"] == "critical")
     print(f"VERDICT={overall}")
+    print(f"STORY={story or 'all'}")
     print(f"REVIEWER={reviewer}")
     print(f"REVIEWED={reviewed}")
     print(f"NOT_REVIEWED={not_reviewed}")
@@ -680,15 +726,22 @@ def file_reports(root: str, sprint: str, known: Dict[str, str], reviewer: str, a
 # ── Commands ─────────────────────────────────────────────
 
 
-def load(root: str) -> dict:
+def load(root: str, story_arg: str, everything: bool) -> dict:
     sprint = current_sprint(root)
+    story = current_story(root, sprint, story_arg, everything)
     architecture = read(os.path.join(root, "docs", "architecture.md"))
     if not architecture:
         raise Precondition("docs/architecture.md does not exist — run the design phase first")
     known = stories(root)
     if not known:
         raise Precondition("docs/stories/ has no story-NNN.md files — run the kickoff phase first")
-    return {"sprint": sprint, "architecture": architecture, "stories": known, "existing": existing_reports(root, sprint)}
+    if story and story not in known:
+        raise Precondition(f"docs/stories/{story}.md does not exist — the story must exist before its code is reviewed")
+    # A per-story run must re-review that story (or say it has no code); an
+    # all-stories run must cover every story that has a report this sprint.
+    existing = existing_reports(root, sprint)
+    return {"sprint": sprint, "story": story, "architecture": architecture, "stories": known,
+            "must_cover": [story] if story else existing}
 
 
 def component_lines(root: str, architecture: str) -> str:
@@ -696,7 +749,8 @@ def component_lines(root: str, architecture: str) -> str:
 
 
 def brief(root: str, ctx: dict) -> str:
-    return PROMPT.format(sprint=ctx["sprint"], components=component_lines(root, ctx["architecture"]))
+    focus = FOCUS_ONE.format(story=ctx["story"]) if ctx["story"] else FOCUS_ALL
+    return PROMPT.format(sprint=ctx["sprint"], components=component_lines(root, ctx["architecture"]), focus=focus)
 
 
 def fallback(reason: str) -> int:
@@ -704,8 +758,8 @@ def fallback(reason: str) -> int:
     return EXIT_FALLBACK
 
 
-def cmd_run(root: str, timeout: int, skip_if_exists: str) -> int:
-    ctx = load(root)
+def cmd_run(root: str, story: str, everything: bool, timeout: int, skip_if_exists: str) -> int:
+    ctx = load(root, story, everything)
     if skip_if_exists and os.path.exists(os.path.join(root, skip_if_exists)):
         return fallback("Codex disabled for this project")
     codex = shutil.which("codex")
@@ -723,17 +777,19 @@ def cmd_run(root: str, timeout: int, skip_if_exists: str) -> int:
         shutil.rmtree(work, ignore_errors=True)
     if answer is None:
         return fallback(reason)
-    problem = invalid(answer, ctx["stories"], ctx["existing"])
+    problem = invalid(answer, ctx["stories"], ctx["must_cover"], ctx["story"])
     if problem:
         return fallback(f"the answer from Codex did not match the expected format ({problem})")
-    return file_reports(root, ctx["sprint"], ctx["stories"], f"OpenAI Codex ({codex_version(codex)}, read-only sandbox)", answer)
+    return file_reports(root, ctx["sprint"], ctx["story"], ctx["stories"], f"OpenAI Codex ({codex_version(codex)}, read-only sandbox)", answer)
 
 
-def cmd_brief(root: str) -> int:
-    ctx = load(root)
+def cmd_brief(root: str, story: str, everything: bool) -> int:
+    ctx = load(root, story, everything)
     documents = [f"- {p}" for p in doc_files(root, ctx["sprint"], ctx["architecture"])]
     documents += [f"- {display}" for _, _, display in source_files(root, ctx["architecture"])]
-    print(brief(root, ctx) + FALLBACK_INSTRUCTIONS.format(documents="\n".join(documents) or "- (no source files found)", schema=json.dumps(SCHEMA, indent=2)))
+    scope = f"--story {ctx['story']} " if ctx["story"] else "--all "
+    print(brief(root, ctx) + FALLBACK_INSTRUCTIONS.format(documents="\n".join(documents) or "- (no source files found)",
+                                                          schema=json.dumps(SCHEMA, indent=2), scope=scope))
     return 0
 
 
@@ -742,8 +798,8 @@ def rejected(why: str) -> int:
     return EXIT_REJECTED
 
 
-def cmd_file(root: str, reason: str) -> int:
-    ctx = load(root)
+def cmd_file(root: str, story: str, everything: bool, reason: str) -> int:
+    ctx = load(root, story, everything)
     reason = plain(reason)
     if not re.search(r"[A-Za-z0-9]", reason):
         return rejected("--reason is required: say why Codex did not review")
@@ -754,31 +810,36 @@ def cmd_file(root: str, reason: str) -> int:
         answer = json.loads(raw)
     except ValueError:
         return rejected("the answer is not valid JSON")
-    problem = invalid(answer, ctx["stories"], ctx["existing"])
+    problem = invalid(answer, ctx["stories"], ctx["must_cover"], ctx["story"])
     if problem:
         return rejected(f"the answer does not match the expected format ({problem})")
-    return file_reports(root, ctx["sprint"], ctx["stories"], f"Claude (fallback — {reason})", answer)
+    return file_reports(root, ctx["sprint"], ctx["story"], ctx["stories"], f"Claude (fallback — {reason})", answer)
 
 
-def cmd_status(root: str) -> int:
+def cmd_status(root: str, story_arg: str, everything: bool) -> int:
     sprint = current_sprint(root)
+    story = current_story(root, sprint, story_arg, everything)
     directory = reviews_dir(root, sprint)
     reports = {}
     if os.path.isdir(directory):
         for name in sorted(os.listdir(directory)):
-            if name.endswith("-review.md"):
+            sid = name[: -len("-review.md")]
+            if name.endswith("-review.md") and (story is None or sid == story):
                 m = VERDICT_LINE_RE.search(read(os.path.join(directory, name)))
-                reports[name[: -len("-review.md")]] = m.group(1) if m else None
+                reports[sid] = m.group(1) if m else None
     verdicts = [v for v in reports.values() if v]
     overall = "NEEDS CHANGES" if "NEEDS CHANGES" in verdicts else ("APPROVED" if verdicts else None)
-    print(json.dumps({"sprint": sprint, "reports": reports, "verdict": overall}))
+    print(json.dumps({"sprint": sprint, "story": story, "reports": reports, "verdict": overall}))
     return 0
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Run, brief, file or inspect this sprint's code review.")
+    ap = argparse.ArgumentParser(description="Run, brief, file or inspect the code review of one story (or of every story with --all).")
     ap.add_argument("command", choices=("run", "brief", "file", "status"))
     ap.add_argument("--root", default=".", help="project root (default: current directory)")
+    scope = ap.add_mutually_exclusive_group()
+    scope.add_argument("--story", default="", metavar="story-NNN", help="review this story only (default: the sprint's .current-story)")
+    scope.add_argument("--all", action="store_true", help="review every story that has code, whatever .current-story says")
     ap.add_argument("--timeout", type=int, default=CODEX_TIMEOUT_S, help="run: seconds to wait for Codex")
     ap.add_argument("--skip-if-exists", default="", metavar="FILE", help="run: do not use Codex when this project file exists")
     ap.add_argument("--reason", default="", help="file: why Codex did not review")
@@ -786,12 +847,12 @@ def main(argv=None) -> int:
     root = os.path.abspath(args.root)
     try:
         if args.command == "run":
-            return cmd_run(root, args.timeout, args.skip_if_exists)
+            return cmd_run(root, args.story, args.all, args.timeout, args.skip_if_exists)
         if args.command == "brief":
-            return cmd_brief(root)
+            return cmd_brief(root, args.story, args.all)
         if args.command == "file":
-            return cmd_file(root, args.reason)
-        return cmd_status(root)
+            return cmd_file(root, args.story, args.all, args.reason)
+        return cmd_status(root, args.story, args.all)
     except Precondition as exc:
         print(f"ERROR={exc}")
         return EXIT_PRECONDITION

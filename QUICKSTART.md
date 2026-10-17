@@ -26,17 +26,19 @@ Existing features do not get retroactive stories — story numbering starts with
 4. Run `/maxPlanck-design-review` — a second reviewer checks the design (OpenAI Codex if installed, Claude otherwise)
    → Proposals in `docs/sprints/sprint-NN/design-review.md`; if there are any, re-run `/maxPlanck-design` so the Architect rules on them
 
-5. Run `/maxPlanck-plan` — Tech Lead turns the approved design into a development plan
-   → Implementation order, tasks per story and files to touch in `docs/sprints/sprint-NN/dev-plan.md`
+Steps 5–8 run **once per story**: plan it, review the plan, build it, review the code — then back to step 5 for the next story. Each command picks up the story in progress (`docs/sprints/sprint-NN/.current-story`), or takes one as an argument (`/maxPlanck-plan story-002`).
 
-6. Run `/maxPlanck-plan-review` — a second reviewer checks the plan (OpenAI Codex if installed, Claude otherwise)
-   → Proposals in `docs/sprints/sprint-NN/plan-review.md`; if there are any, re-run `/maxPlanck-plan` so the Tech Lead rules on them
+5. Run `/maxPlanck-plan` — Tech Lead decides the story order (first time) and plans the next story
+   → Story order in `docs/sprints/sprint-NN/dev-plan.md`; tasks and files to touch in `docs/sprints/sprint-NN/plans/story-NNN-plan.md`
 
-7. Run `/maxPlanck-develop` — Developer scaffolds the project and builds features, following the plan
+6. Run `/maxPlanck-plan-review` — a second reviewer checks that plan (OpenAI Codex if installed, Claude otherwise)
+   → Proposals in `docs/sprints/sprint-NN/plan-reviews/story-NNN-plan-review.md`; if there are any, re-run `/maxPlanck-plan` so the Tech Lead rules on them
+
+7. Run `/maxPlanck-develop` — Developer scaffolds the project (first time) and builds that story, following its plan
    → Code appears in the source directories specified by `docs/architecture.md`
 
-8. Run `/maxPlanck-review` — a second reviewer checks the implementation (OpenAI Codex if installed, Claude otherwise)
-   → One review report per story in `docs/sprints/sprint-NN/reviews/`
+8. Run `/maxPlanck-review` — a second reviewer checks that story's implementation (OpenAI Codex if installed, Claude otherwise)
+   → Its review report in `docs/sprints/sprint-NN/reviews/`; when it passes, go back to step 5 for the next story (after the last one, continue below)
 
 9. Run `/maxPlanck-audit` — Security Reviewer audits for vulnerabilities and generates ISRs
    → Security report in `docs/sprints/sprint-NN/security-report.md`
@@ -69,7 +71,7 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
    "Product Owner, write a story for drag-and-drop card reordering"
 
 2. Then walk it through the pipeline:
-   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-plan` → `/maxPlanck-plan-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
+   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-plan story-NNN` → `/maxPlanck-plan-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
 
 3. Check the log anytime: `cat logs/agent-workflow.log`
 

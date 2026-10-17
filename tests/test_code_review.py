@@ -91,7 +91,7 @@ class CodeReviewRunTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.root = os.path.join(self.tmp, "project")
         self.bin = os.path.join(self.tmp, "bin")
-        for d in ("docs/sprints", "docs/stories", "docs/ux", "backend/src", "backend/node_modules/x", "frontend/src",
+        for d in ("docs/sprints/sprint-03", "docs/stories", "docs/ux", "backend/src", "backend/node_modules/x", "frontend/src",
                   "other-client", "logs", ".claude"):
             os.makedirs(os.path.join(self.root, d))
         os.makedirs(self.bin)
@@ -258,7 +258,7 @@ class CodeReviewRunTests(unittest.TestCase):
         self.assertNotIn("other-client", out.stdout)
         self.assertNotIn("node_modules", out.stdout)
         self.assertIn('"flagged_for_security"', out.stdout)
-        self.assertIn("file --reason", out.stdout)
+        self.assertIn("file --all --reason", out.stdout)
 
     def test_fallback_files_with_the_reason_in_the_report(self):
         out, f = self.file_answer(answer(reviews=[review(findings=[])]))
@@ -301,10 +301,81 @@ class CodeReviewRunTests(unittest.TestCase):
 
     def test_status_reads_the_filed_verdicts(self):
         out, _ = self.run_review(command="status", path=os.path.join(self.tmp, "empty"))
-        self.assertEqual(json.loads(out.stdout), {"sprint": "03", "reports": {}, "verdict": None})
+        self.assertEqual(json.loads(out.stdout), {"sprint": "03", "story": None, "reports": {}, "verdict": None})
         self.file_answer(answer(reviews=[review(findings=[finding("critical")])]))
         out, _ = self.run_review(command="status", path=os.path.join(self.tmp, "empty"))
-        self.assertEqual(json.loads(out.stdout), {"sprint": "03", "reports": {"story-001": "NEEDS CHANGES"}, "verdict": "NEEDS CHANGES"})
+        self.assertEqual(json.loads(out.stdout), {"sprint": "03", "story": None, "reports": {"story-001": "NEEDS CHANGES"}, "verdict": "NEEDS CHANGES"})
+
+    # ── One story at a time ──
+
+    def test_the_current_story_file_scopes_the_review_to_that_story(self):
+        os.makedirs(os.path.join(self.root, "docs", "sprints", "sprint-03", "plans"))
+        self.write("docs/sprints/sprint-03/.current-story", "story-002\n")
+        self.write("docs/sprints/sprint-03/dev-plan.md", "# Plan index\n")
+        self.write("docs/sprints/sprint-03/plans/story-002-plan.md", "# Plan for story-002\n")
+        self.write("docs/sprints/sprint-03/plans/notes.md", "# not a plan\n")
+        out, f = self.run_review(ans=answer(reviews=[review("story-002", [])]))
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual((f["VERDICT"], f["STORY"], f["REVIEWED"]), ("APPROVED", "story-002", "story-002"))
+        staged = self.staged_files()
+        self.assertIn("docs/sprints/sprint-03/dev-plan.md", staged)
+        self.assertIn("docs/sprints/sprint-03/plans/story-002-plan.md", staged)
+        self.assertNotIn("docs/sprints/sprint-03/plans/notes.md", staged)
+        with open(self.log + ".prompt", encoding="utf-8") as fh:
+            prompt = fh.read()
+        self.assertIn("This run reviews story-002 only", prompt)
+        self.assertNotIn("every story that has an implementation", prompt)
+        # The answer may name no other story, reviewed or not.
+        for ans in (answer(reviews=[review("story-002", []), review("story-001", [])]),
+                    answer(reviews=[], not_reviewed=[{"story": "story-001", "reason": "x"}])):
+            out, f = self.run_review(ans=ans)
+            self.assertEqual(out.returncode, cr.EXIT_FALLBACK, out.stdout + out.stderr)
+            self.assertIn("reviews story-002 only, not story-001", f["FALLBACK"])
+            self.assertEqual(self.reports(), ["story-002-review.md"])
+        out, f = self.run_review(ans=answer(reviews=[], not_reviewed=[{"story": "story-002", "reason": "no code yet"}]))
+        self.assertEqual((out.returncode, f["VERDICT"], f["REMOVED"]), (0, "NOTHING REVIEWED", "docs/sprints/sprint-03/reviews/story-002-review.md"))
+
+    def test_story_flag_and_all_flag_override_the_current_story(self):
+        self.write("docs/sprints/sprint-03/.current-story", "story-002\n")
+        out, f = self.file_answer(answer(reviews=[review("story-001", [])]))
+        self.assertEqual(out.returncode, cr.EXIT_REJECTED)
+        self.assertIn("reviews story-002 only", f["ERROR"])
+        out, f = self.run_review(command="file", stdin=json.dumps(answer(reviews=[review("story-001", [])])),
+                                 extra=("--story", "story-001", "--reason", "Codex CLI not installed"), path=os.path.join(self.tmp, "empty"))
+        self.assertEqual((out.returncode, f["STORY"]), (0, "story-001"), out.stdout + out.stderr)
+        out, f = self.run_review(command="file", stdin=json.dumps(answer(reviews=[review("story-001", []), review("story-002", [])])),
+                                 extra=("--all", "--reason", "Codex CLI not installed"), path=os.path.join(self.tmp, "empty"))
+        self.assertEqual((out.returncode, f["STORY"], f["REVIEWED"]), (0, "all", "story-001,story-002"), out.stdout + out.stderr)
+        out, _ = self.run_review(command="status", path=os.path.join(self.tmp, "empty"))
+        self.assertEqual(json.loads(out.stdout)["reports"], {"story-002": "APPROVED"})
+        out, _ = self.run_review(command="status", extra=("--all",), path=os.path.join(self.tmp, "empty"))
+        self.assertEqual(json.loads(out.stdout)["reports"], {"story-001": "APPROVED", "story-002": "APPROVED"})
+
+    def test_a_per_story_run_must_cover_that_story(self):
+        # In an all-stories run a story with a report must be covered again; in a
+        # per-story run the named story must be, whether or not it has one.
+        self.write("docs/sprints/sprint-03/.current-story", "story-001\n")
+        out, f = self.file_answer(answer(reviews=[], not_reviewed=[]))
+        self.assertEqual(out.returncode, cr.EXIT_REJECTED)
+        self.assertIn("nothing reviewed", f["ERROR"])
+        out, _ = self.run_review(command="brief", path=os.path.join(self.tmp, "empty"))
+        self.assertIn("file --story story-001 --reason", out.stdout)
+        out, _ = self.run_review(command="brief", extra=("--all",), path=os.path.join(self.tmp, "empty"))
+        self.assertIn("file --all --reason", out.stdout)
+
+    def test_story_ids_are_validated_before_they_become_paths(self):
+        for bad in ("../../etc", "story-1", "STORY-001"):
+            out, f = self.run_review(ans=answer(), extra=("--story", bad))
+            self.assertEqual(out.returncode, cr.EXIT_PRECONDITION, bad)
+            self.assertIn("expected a story id", f["ERROR"])
+        out, f = self.run_review(ans=answer(), extra=("--story", "story-999"))
+        self.assertEqual(out.returncode, cr.EXIT_PRECONDITION)
+        self.assertIn("docs/stories/story-999.md does not exist", f["ERROR"])
+        self.write("docs/sprints/sprint-03/.current-story", "x/../y\n")
+        out, f = self.run_review(ans=answer())
+        self.assertEqual(out.returncode, cr.EXIT_PRECONDITION)
+        self.assertIn(".current-story holds", f["ERROR"])
+        self.assertEqual(self.reports(), [])
 
     # ── Staging boundary (what may leave the machine) ──
 
