@@ -38,6 +38,8 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 | UX | Wireframes | ✅/❌ | docs/ux/ |
 | Design | Architecture Doc | ✅/❌ | docs/architecture.md |
 | Design Review | Design Review Report (reviewer named per round) | ✅/❌ | docs/sprints/sprint-NN/design-review.md |
+| Plan | Plan index + per-story plans | ✅/❌ | docs/sprints/sprint-NN/dev-plan.md, docs/sprints/sprint-NN/plans/ |
+| Plan Review | Per-story plan review reports (reviewer named per round) | ✅/❌ | docs/sprints/sprint-NN/plan-reviews/ |
 | Develop | Source Code | ✅/❌ | <component paths per the ## Components table in docs/architecture.md> |
 | Review | Review Reports | ✅/❌ | docs/sprints/sprint-NN/reviews/ |
 | Security | Security Report | ✅/❌ | docs/sprints/sprint-NN/security-report.md |
@@ -93,7 +95,8 @@ Before recommending the next phase, verify:
 
 - **Before UX:** PRD exists + at least 3 stories with acceptance criteria
 - **Before Design:** UX specs exist for P0/P1 stories
-- **Before Develop:** Architecture doc exists with data models, API endpoints, folder structure; if the design changed this sprint (a sprint-`<NN>` Change Log entry), `docs/sprints/sprint-<NN>/design-review.md` exists and none of its proposals is still open (each has a row in the doc's `## Design Review Log`)
+- **Before Plan:** Architecture doc exists with data models, API endpoints, folder structure; if the design changed this sprint (a sprint-`<NN>` Change Log entry), `docs/sprints/sprint-<NN>/design-review.md` exists and none of its proposals is still open (each has a row in the doc's `## Design Review Log`)
+- **Before Develop (per story):** `docs/sprints/sprint-<NN>/dev-plan.md` lists the story in its `## Story Order` and `docs/sprints/sprint-<NN>/plans/<story>-plan.md` exists with a `## Tasks` table; if `docs/sprints/sprint-<NN>/plan-reviews/<story>-plan-review.md` exists, none of its proposals is still open (each has a row in that plan's `## Plan Review Log`). Stories are planned, built and reviewed one at a time: the next story's plan comes after this story's code review
 - **Before Review:** Code exists in the component paths specified by the architecture doc
 - **Before Security:** Code review completed **this sprint**, no unresolved critical issues
 - **Before DevOps:** Security report exists at `docs/sprints/sprint-<NN>/security-report.md`, no CRITICAL FINDINGS verdict

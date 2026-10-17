@@ -54,6 +54,8 @@ Check each phase and report status:
 | UX | Wireframes for P0/P1 | `docs/ux/` has design files (or this-sprint revisions) for high-priority stories |
 | Design | Architecture doc | `docs/architecture.md` exists with models, APIs, structure |
 | Design Review | Design reviewed, proposals all ruled on | If `docs/architecture.md` has a Change Log entry for sprint NN: `docs/sprints/sprint-NN/design-review.md` exists and every `DR-NN-n` in it has a row in the `## Design Review Log` of `docs/architecture.md`. Report who reviewed (the `**Reviewer:**` line). A sprint whose design did not change needs no review — report it as `—` |
+| Plan | Plan index + one plan per story | `docs/sprints/sprint-NN/dev-plan.md` exists with a `## Story Order`, and every story in that order has `docs/sprints/sprint-NN/plans/story-NNN-plan.md` with a `## Tasks` table; report per story. A sprint that wrote no code (adoption baseline) needs no plan — report it as `—` |
+| Plan Review | Each plan reviewed, proposals all ruled on | For every story with a plan: `docs/sprints/sprint-NN/plan-reviews/story-NNN-plan-review.md` exists and every `PR-NN-SSS-n` in it has a row in that plan's `## Plan Review Log`. Report who reviewed (the `**Reviewer:**` line), per story. A sprint with no plans needs no review — report it as `—` |
 | Develop | Code exists | Each in-scope component's path (per the `## Components` table in `docs/architecture.md`) has source files; report per component |
 | Review | Review reports | `docs/sprints/sprint-NN/reviews/` has reports, no unresolved criticals |
 | Security | Security report | `docs/sprints/sprint-NN/security-report.md` exists, no CRITICAL FINDINGS |

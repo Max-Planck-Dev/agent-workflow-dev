@@ -2,7 +2,7 @@
 name: maxPlanck-architect
 description: Designs system architecture, defines data models, API contracts, folder structure, and technology decisions. Use for technical design, architecture review, and API specification.
 tools: Read, Grep, Glob, Write, Bash
-model: sonnet
+model: fable
 ---
 
 # Architect Agent

@@ -2,7 +2,7 @@
 name: maxPlanck-devops
 description: Creates infrastructure-as-code (Terraform), CI/CD pipelines, and deployment documentation. Reads security ISRs and produces a compliance mapping. Use for infrastructure provisioning, CI/CD setup, and deployment planning.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: sonnet
+model: opus
 ---
 
 # DevOps Agent

@@ -11,6 +11,9 @@ DASHBOARD = os.path.join(ROOT, "bin", "pipeline_dashboard.py")
 HOOK_SH = os.path.join(ROOT, ".claude", "hooks", "log-agent-lifecycle.sh")
 HOOK_PY = os.path.join(ROOT, ".claude", "hooks", "pipeline-events.py")
 DESIGN_REVIEW = os.path.join(ROOT, ".claude", "skills", "maxPlanck-design-review", "design_review.py")
+AGENT_MODELS = os.path.join(ROOT, "bin", "agent_models.py")
+CODE_REVIEW = os.path.join(ROOT, ".claude", "skills", "maxPlanck-review", "code_review.py")
+PLAN_REVIEW = os.path.join(ROOT, ".claude", "skills", "maxPlanck-plan-review", "plan_review.py")
 
 
 def load_module(name: str, path: str):

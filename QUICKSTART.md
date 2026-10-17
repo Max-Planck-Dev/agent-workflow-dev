@@ -26,22 +26,30 @@ Existing features do not get retroactive stories — story numbering starts with
 4. Run `/maxPlanck-design-review` — a second reviewer checks the design (OpenAI Codex if installed, Claude otherwise)
    → Proposals in `docs/sprints/sprint-NN/design-review.md`; if there are any, re-run `/maxPlanck-design` so the Architect rules on them
 
-5. Run `/maxPlanck-develop` — Developer scaffolds the project and builds features
+Steps 5–8 run **once per story**: plan it, review the plan, build it, review the code — then back to step 5 for the next story. Each command picks up the story in progress (`docs/sprints/sprint-NN/.current-story`), or takes one as an argument (`/maxPlanck-plan story-002`).
+
+5. Run `/maxPlanck-plan` — Tech Lead decides the story order (first time) and plans the next story
+   → Story order in `docs/sprints/sprint-NN/dev-plan.md`; tasks and files to touch in `docs/sprints/sprint-NN/plans/story-NNN-plan.md`
+
+6. Run `/maxPlanck-plan-review` — a second reviewer checks that plan (OpenAI Codex if installed, Claude otherwise)
+   → Proposals in `docs/sprints/sprint-NN/plan-reviews/story-NNN-plan-review.md`; if there are any, re-run `/maxPlanck-plan` so the Tech Lead rules on them
+
+7. Run `/maxPlanck-develop` — Developer scaffolds the project (first time) and builds that story, following its plan
    → Code appears in the source directories specified by `docs/architecture.md`
 
-6. Run `/maxPlanck-review` — Code Reviewer checks the implementation
-   → Review report in `docs/sprints/sprint-NN/reviews/`
+8. Run `/maxPlanck-review` — a second reviewer checks that story's implementation (OpenAI Codex if installed, Claude otherwise)
+   → Its review report in `docs/sprints/sprint-NN/reviews/`; when it passes, go back to step 5 for the next story (after the last one, continue below)
 
-7. Run `/maxPlanck-audit` — Security Reviewer audits for vulnerabilities and generates ISRs
+9. Run `/maxPlanck-audit` — Security Reviewer audits for vulnerabilities and generates ISRs
    → Security report in `docs/sprints/sprint-NN/security-report.md`
 
-8. Run `/maxPlanck-infra` — DevOps Engineer creates infrastructure and CI/CD pipeline
-   → Terraform in the infra component's path, CI/CD in each component's workflow (both per the architecture doc's Components table), deployment doc in `docs/devops/`
+10. Run `/maxPlanck-infra` — DevOps Engineer creates infrastructure and CI/CD pipeline
+    → Terraform in the infra component's path, CI/CD in each component's workflow (both per the architecture doc's Components table), deployment doc in `docs/devops/`
 
-9. Run `/maxPlanck-test` — QA writes and runs tests
-   → Test results in `docs/sprints/sprint-NN/test-plans/`
+11. Run `/maxPlanck-test` — QA writes and runs tests
+    → Test results in `docs/sprints/sprint-NN/test-plans/`
 
-10. Run `/maxPlanck-sprint` — Scrum Master reviews everything, updates story statuses, and writes the sprint summary + platform proposals
+12. Run `/maxPlanck-sprint` — Scrum Master reviews everything, updates story statuses, and writes the sprint summary + platform proposals
 
 **Or run `/maxPlanck-feeling-lucky` to execute the entire pipeline automatically.**
 
@@ -63,7 +71,7 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
    "Product Owner, write a story for drag-and-drop card reordering"
 
 2. Then walk it through the pipeline:
-   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
+   `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-plan story-NNN` → `/maxPlanck-plan-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test`
 
 3. Check the log anytime: `cat logs/agent-workflow.log`
 
@@ -80,6 +88,7 @@ The Product Owner updates the affected story (with a History entry) and PRD firs
 - Each agent auto-logs to `logs/agent-workflow.log`
 - Agents read each other's output from `docs/` — the chain is connected through files
 - The tech stack is determined by the Architect — specify preferences in your project description or let it auto-detect
+- To change which model an agent runs on, run `/maxPlanck-config` (alone it shows the table and asks; `/maxPlanck-config developer=opus` sets one; `reset` restores the defaults). Or edit `.claude/maxPlanck-models.json` (role → `sonnet`/`opus`/`haiku`/`fable`/`inherit`/model id) and start a new session — the change is copied into the agent files for you
 - To change the default tech stack, edit `.claude/maxPlanck-default-stack.md`
 - To change the default infrastructure stack, edit the IaC section in `.claude/maxPlanck-default-stack.md`
 - To change what the workflow considers part of your product, edit the `## Components` and `### Excluded Paths` tables in `docs/architecture.md`

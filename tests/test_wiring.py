@@ -10,9 +10,10 @@ import os
 import re
 import unittest
 
-from helpers import ROOT, dashboard
+from helpers import AGENT_MODELS, ROOT, dashboard, load_module
 
 pd = dashboard()
+am = load_module("agent_models", AGENT_MODELS)
 
 PREFIX = "maxPlanck"
 AGENTS_DIR = os.path.join(ROOT, ".claude", "agents")
@@ -58,6 +59,15 @@ class WiringTests(unittest.TestCase):
             if "agent" in fields:
                 self.assertIn(fields["agent"], agents, name)
 
+    def test_only_orchestrators_and_config_run_unbound(self):
+        # Every phase skill forks into its agent; the orchestrators and the
+        # config skill must run in the main context. Nothing else should.
+        unbound = {name for name, fields in skill_frontmatters().items() if "agent" not in fields}
+        expected = {f"{PREFIX}-{s}" for s in ("feeling-lucky", "adopt", "change", "config")}
+        self.assertEqual(unbound, expected)
+        for name in unbound:
+            self.assertNotIn("context", skill_frontmatters()[name], name)
+
     def test_skill_and_agent_names_never_collide(self):
         self.assertEqual(set(agent_names()) & set(skill_frontmatters()), set())
 
@@ -79,3 +89,38 @@ class WiringTests(unittest.TestCase):
             if fields.get("user-invocable") == "true":
                 command = "/${PREFIX}-" + name[len(PREFIX) + 1:]
                 self.assertRegex(installer, re.escape(command) + r"\s", name)
+
+
+class AgentModelWiringTests(unittest.TestCase):
+    """The agent files in this repo carry the applier's built-in defaults.
+
+    Without this, a default changed in one place and not the other would
+    ship two different answers to "which model does the Developer run on".
+    """
+
+    def test_every_agent_frontmatter_model_is_the_built_in_default(self):
+        for name in agent_names():
+            role = name[len(PREFIX) + 1:]
+            expected = am.resolve(role, None).model
+            self.assertEqual(frontmatter(os.path.join(AGENTS_DIR, name + ".md")).get("model"), expected, name)
+
+    def test_every_built_in_override_names_an_existing_agent(self):
+        roles = {name[len(PREFIX) + 1:] for name in agent_names()}
+        self.assertLessEqual(set(am.DEFAULTS["agents"]), roles)
+
+    def test_plan_and_develop_default_to_different_models(self):
+        self.assertNotEqual(am.resolve("tech-lead", None).model, am.resolve("developer", None).model)
+
+    def test_installer_ships_the_applier_and_its_session_hook(self):
+        with open(os.path.join(ROOT, "setup.sh"), encoding="utf-8") as fh:
+            installer = fh.read()
+        self.assertIn("bin/agent_models.py", installer)
+        self.assertIn("apply-agent-models.sh", installer)
+        with open(os.path.join(ROOT, ".claude", "settings.json"), encoding="utf-8") as fh:
+            commands = [
+                h["command"]
+                for entry in json.load(fh)["hooks"]["SessionStart"]
+                for h in entry["hooks"]
+            ]
+        self.assertTrue(any("apply-agent-models.sh" in c for c in commands), commands)
+        self.assertTrue(os.access(os.path.join(ROOT, ".claude", "hooks", "apply-agent-models.sh"), os.X_OK))
