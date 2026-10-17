@@ -38,7 +38,7 @@ d=$(mktemp -d) && git clone https://github.com/Max-Planck-Dev/agent-workflow-dev
 
 (or `gh repo clone Max-Planck-Dev/agent-workflow-dev "$d"` in place of the `git clone`, as above)
 
-Every file name, skill name, agent name, and cross-reference is rewritten from `maxPlanck` to your prefix: you get `/acme-kickoff`, `/acme-feeling-lucky`, `.claude/acme-default-stack.md`, and so on. Brand the reports too via `.claude/<prefix>-brand.json`.
+Every file name, skill name, agent name, and cross-reference is rewritten from `maxPlanck` to your prefix: you get `/acme-kickoff`, `/acme-feeling-lucky`, `.claude/acme-default-stack.md`, `.claude/acme-models.json`, and so on. Brand the reports too via `.claude/<prefix>-brand.json`.
 
 **Updates still work for rebranded installs** — with one rule: update by re-running the installer with the *same* `--prefix`, and don't hand-edit the installed workflow files (the update overwrites them; customize by forking the source repo instead). The weekly update check knows your prefix and prints the right command. What a rebranded install can't use is the *plugin* route, which ships fixed names.
 
@@ -61,7 +61,7 @@ Script installs record their source repo and commit in `.claude/maxPlanck-workfl
 
 ## What Is This?
 
-Eleven specialized AI agents — Product Owner, UX Designer, Architect, Design Reviewer, Developer, Code Reviewer, Security Reviewer, DevOps Engineer, QA Tester, Scrum Master, and Release Manager — work together through a standard Agile pipeline. Each agent has a defined role, reads artifacts from previous phases, and produces its own outputs. Knowledge compounds across cycles: living docs (PRD, architecture) keep append-only change logs, while per-cycle artifacts (reviews, test results, security reports, sprint summaries) land in `docs/sprints/sprint-NN/` folders. Two orchestration skills (`feeling-lucky`, `change`) drive multi-phase runs, and `report` produces the release-handoff pack.
+Thirteen specialized AI agents — Product Owner, UX Designer, Architect, Design Reviewer, Tech Lead, Plan Reviewer, Developer, Code Reviewer, Security Reviewer, DevOps Engineer, QA Tester, Scrum Master, and Release Manager — work together through a standard Agile pipeline. Each agent has a defined role, reads artifacts from previous phases, and produces its own outputs. Knowledge compounds across cycles: living docs (PRD, architecture) keep append-only change logs, while per-cycle artifacts (reviews, test results, security reports, sprint summaries) land in `docs/sprints/sprint-NN/` folders. Two orchestration skills (`feeling-lucky`, `change`) drive multi-phase runs, and `report` produces the release-handoff pack.
 
 **No pre-scaffolding.** Agents handle everything from requirements through implementation.
 
@@ -73,7 +73,9 @@ Eleven specialized AI agents — Product Owner, UX Designer, Architect, Design R
 | `/maxPlanck-ux` | UX Designer creates wireframes and component specs |
 | `/maxPlanck-design` | Architect designs the technical system |
 | `/maxPlanck-design-review` | A second reviewer checks the design — OpenAI Codex if installed, Claude otherwise — and the Architect accepts or rejects each proposal |
-| `/maxPlanck-develop` | Developer scaffolds the project and implements features |
+| `/maxPlanck-plan` | Tech Lead writes the development plan — implementation order, tasks per story, files to touch, verification per component — and rules on plan review proposals |
+| `/maxPlanck-plan-review` | A second reviewer checks the plan — OpenAI Codex if installed, Claude otherwise — and the Tech Lead accepts or rejects each proposal |
+| `/maxPlanck-develop` | Developer scaffolds the project and implements features, following the plan |
 | `/maxPlanck-review` | Code Reviewer audits the implementation |
 | `/maxPlanck-audit` | Security Reviewer audits and writes Infrastructure Security Requirements |
 | `/maxPlanck-infra` | DevOps creates IaC and CI/CD pipelines |
@@ -83,6 +85,7 @@ Eleven specialized AI agents — Product Owner, UX Designer, Architect, Design R
 | `/maxPlanck-adopt` | Adopts an existing codebase — reverse-engineers the founding docs as-built |
 | `/maxPlanck-change` | Runs a change request through the team — docs update first, then implement → review → test |
 | `/maxPlanck-report` | Release Manager generates the 4-report release pack: internal report, client report, blog-style release note, QA checklist |
+| `/maxPlanck-config` | Shows or changes which Claude model each agent runs on (`/maxPlanck-config developer=opus`, `reset`, or just ask) |
 
 ## Tech Stack (Built by Agents)
 
@@ -95,7 +98,7 @@ Determined at design time by the **Architect** agent:
 ## Agent Pipeline
 
 ```
-Product Owner → UX Designer → Architect → Design Reviewer → Developer → Code Reviewer → Security → DevOps → QA Tester → Scrum Master
+Product Owner → UX Designer → Architect → Design Reviewer → Tech Lead → Plan Reviewer → Developer → Code Reviewer → Security → DevOps → QA Tester → Scrum Master
 ```
 
 When you decide a feature set is ready to ship, the **Release Manager** (`/maxPlanck-report`) produces the client-facing handoff pack — a release-cadence step outside the sprint loop.
@@ -106,7 +109,32 @@ Before any code is written, the design gets an independent review. The reviewer 
 
 **Who reviews:** if the [OpenAI Codex CLI](https://github.com/openai/codex) is installed (`codex` on your `PATH`, logged in with `codex login`), Codex does — a different model from the one that wrote the design. If it is not installed, or a Codex run fails, a Claude agent with a fresh context reviews instead. Each round of the report says who reviewed it, and why when it was the fallback.
 
-**What leaves your machine with Codex:** your design docs (architecture, PRD, stories, UX specs) go to OpenAI through your own Codex login. Codex is given a temporary copy of those documents only and runs in its read-only sandbox — but that sandbox restricts writing, not reading, so treat it as reduced exposure rather than isolation. To keep a project on Claude even with Codex installed, create an empty `.claude/maxPlanck-no-codex` file in it.
+The same arrangement reviews the **code**: `/maxPlanck-review` hands the in-scope components, the architecture doc and the stories to Codex, which files one report per story in `docs/sprints/sprint-NN/reviews/` (findings by severity with `file:line`, verdict derived from the critical ones); the Claude Code Reviewer takes over, with the same brief, when Codex cannot. Every report names its reviewer.
+
+**What leaves your machine with Codex:** your design docs (architecture, PRD, stories, UX specs) and, for the code review, **the source code of the in-scope components** (never anything under `### Excluded Paths`, dependency or build folders) go to OpenAI through your own Codex login. Codex is given a temporary copy of those files only and runs in its read-only sandbox — but that sandbox restricts writing, not reading, so treat it as reduced exposure rather than isolation. To keep a project on Claude even with Codex installed, create an empty `.claude/maxPlanck-no-codex` file in it — it turns off both reviews.
+
+### A plan before the code
+
+Once the design is approved, the **Tech Lead** (`/maxPlanck-plan`) turns it into a development plan at `docs/sprints/sprint-NN/dev-plan.md`: which component first, the tasks per story with the files they touch, which acceptance criterion each task covers, and how each component is verified. The plan gets the same second opinion as the design: `/maxPlanck-plan-review` hands it — with the design docs and an inventory of the source files that exist (paths only) — to Codex, or to the Claude Plan Reviewer when Codex cannot, and files proposals under stable `PR-NN-n` IDs in `docs/sprints/sprint-NN/plan-review.md`. The Tech Lead accepts, partially accepts, or rejects each one in the plan's `## Plan Review Log`, for at most three rounds. The Developer then follows the approved plan. When review, audit, or QA send the Developer back, the failing report is the work order and the plan is not redone.
+
+### Which model runs each agent
+
+Designing, planning, implementing and reviewing are different kinds of work, so the agents default to different models: the Architect and the Tech Lead run on `fable`; the Developer, Security Reviewer and DevOps on `opus`; the Design, Plan and Code Reviewers on `opus` too — that is the Claude fallback behind Codex, which reviews when its CLI is installed; everyone else on `sonnet`. The choice is yours, per project, in `.claude/maxPlanck-models.json` (created with the defaults at install, never overwritten):
+
+```json
+{
+  "default": "sonnet",
+  "agents": {
+    "architect": "fable", "tech-lead": "fable",
+    "developer": "opus", "security": "opus", "devops": "opus",
+    "design-reviewer": "opus", "plan-reviewer": "opus", "code-reviewer": "opus"
+  }
+}
+```
+
+Keys under `agents` are the role names (the part after `maxPlanck-`); values are anything Claude Code accepts as an agent model — `sonnet`, `opus`, `haiku`, `fable`, `inherit`, or a full model id. A role not listed gets `default`. Claude Code only reads a subagent's model from its agent file, so the workflow copies the JSON into the installed agent files for you: at install/update, and at the start of every session (a one-line notice says what moved).
+
+The easy way to change it is `/maxPlanck-config`: alone it prints the table and asks what to change; `/maxPlanck-config developer=opus default=sonnet` sets exactly that; `/maxPlanck-config reset` restores the defaults; plain language ("everyone on sonnet, the Architect on fable") works too. It drives `python3 .claude/bin/maxPlanck-models.py` (`show`, `set role=model …`, `reset`, `apply`), which validates roles and models and writes the agent files in the same step — so you can also run that directly, or edit the JSON by hand and start a new session. Plugin installs run with the defaults — a plugin's agent files cannot be rewritten.
 
 ## Observability
 

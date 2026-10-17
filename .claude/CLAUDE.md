@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multi-agent Agile workflow: 11 specialized agents collaborate to build software projects. The primary goal is **observability** — every agent handoff is logged to `logs/agent-workflow.log` so the user can trace the full chain of responsibility. The user provides their project idea during `/maxPlanck-kickoff` (or `/maxPlanck-feeling-lucky`), and the agents take it from there.
+Multi-agent Agile workflow: 13 specialized agents collaborate to build software projects. The primary goal is **observability** — every agent handoff is logged to `logs/agent-workflow.log` so the user can trace the full chain of responsibility. The user provides their project idea during `/maxPlanck-kickoff` (or `/maxPlanck-feeling-lucky`), and the agents take it from there.
 
 **Tech stack (built by agents):** Determined at design time by the Architect agent. Detects existing project stack, respects user preferences stated in the PRD, falls back to defaults defined in `.claude/maxPlanck-default-stack.md` when nothing else is specified.
 
@@ -13,11 +13,11 @@ Multi-agent Agile workflow: 11 specialized agents collaborate to build software 
 Agents communicate through files, not direct messages. Each agent reads artifacts from `docs/` produced by earlier phases and writes its own outputs.
 
 ```
-Product Owner → UX Designer → Architect → Design Reviewer → Developer → Code Reviewer → Security → DevOps → QA Tester → Scrum Master
-                                                                                              (release-cadence) → Release Manager
+Product Owner → UX Designer → Architect → Design Reviewer → Tech Lead → Plan Reviewer → Developer → Code Reviewer → Security → DevOps → QA Tester → Scrum Master
+                                                                                                                          (release-cadence) → Release Manager
 ```
 
-The Design Reviewer reviews through OpenAI Codex when its CLI is installed and falls back to reviewing by itself (Claude) when it is not, when Codex fails, or when the project has a `.claude/maxPlanck-no-codex` file.
+The Design Reviewer, the Plan Reviewer and the Code Reviewer review through OpenAI Codex when its CLI is installed and fall back to reviewing by themselves (Claude) when it is not, when Codex fails, or when the project has a `.claude/maxPlanck-no-codex` file; each has a helper script in its skill directory (`design_review.py`, `plan_review.py`, `code_review.py`) that stages a temporary copy for Codex and does the filing. The Tech Lead writes the sprint's development plan before the first Developer run and rules on the Plan Reviewer's proposals (`PR-NN-n`, in the plan's `## Plan Review Log`) the way the Architect rules on design proposals; loops back to the Developer from review, audit, or test never re-plan — the failing report is the work order.
 
 | Agent | Writes To |
 |-------|-----------|
@@ -25,8 +25,10 @@ The Design Reviewer reviews through OpenAI Codex when its CLI is installed and f
 | `maxPlanck-ux-designer` | `docs/ux/` |
 | `maxPlanck-architect` | `docs/architecture.md` |
 | `maxPlanck-design-reviewer` | `docs/sprints/sprint-NN/design-review.md` (through its helper script) |
+| `maxPlanck-tech-lead` | `docs/sprints/sprint-NN/dev-plan.md` |
+| `maxPlanck-plan-reviewer` | `docs/sprints/sprint-NN/plan-review.md` (through its helper script) |
 | `maxPlanck-developer` | Component paths per the `## Components` table in `docs/architecture.md` |
-| `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` |
+| `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` (through its helper script) |
 | `maxPlanck-security` | `docs/sprints/sprint-NN/security-report.md` |
 | `maxPlanck-devops` | The infra component's path and each component's CI workflow (both per `docs/architecture.md`), `docs/devops/` |
 | `maxPlanck-qa-tester` | test files within component paths, `docs/sprints/sprint-NN/test-plans/` |
@@ -52,6 +54,8 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 ```
 docs/sprints/sprint-NN/
 ├── design-review.md         (one section per review round)
+├── dev-plan.md              (the Tech Lead's work order for the Developer; ends with its Plan Review Log)
+├── plan-review.md           (one section per review round)
 ├── reviews/story-NNN-review.md
 ├── test-plans/story-NNN-tests.md
 ├── security-report.md
@@ -66,9 +70,9 @@ The current sprint number lives in `docs/sprints/.current-sprint` (two digits). 
 
 ## Skills (Slash Commands)
 
-**Step-by-step:** `/maxPlanck-kickoff` → `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test` → `/maxPlanck-sprint`
+**Step-by-step:** `/maxPlanck-kickoff` → `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-design-review` → `/maxPlanck-plan` → `/maxPlanck-plan-review` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test` → `/maxPlanck-sprint`
 
-Skills are phase-named; agents are role-named, and the two sets must never collide. The security phase skill is `/maxPlanck-audit` (bound to the `maxPlanck-security` agent) and the infrastructure phase skill is `/maxPlanck-infra` (bound to the `maxPlanck-devops` agent). The design-review phase skill is `/maxPlanck-design-review` (bound to the `maxPlanck-design-reviewer` agent). The reviewer is OpenAI Codex when its CLI is installed, Claude otherwise; either way `design_review.py`, shipped inside that skill's directory, does the filing — round numbers, stable `DR-NN-n` proposal IDs, open proposals and the verdict are computed by that script, never by an agent.
+Skills are phase-named; agents are role-named, and the two sets must never collide. The security phase skill is `/maxPlanck-audit` (bound to the `maxPlanck-security` agent) and the infrastructure phase skill is `/maxPlanck-infra` (bound to the `maxPlanck-devops` agent). The design-review phase skill is `/maxPlanck-design-review` (bound to the `maxPlanck-design-reviewer` agent). The plan phase skill is `/maxPlanck-plan` (bound to the `maxPlanck-tech-lead` agent) and the plan-review phase skill is `/maxPlanck-plan-review` (bound to the `maxPlanck-plan-reviewer` agent; `plan_review.py` in that skill's directory does the filing, with stable `PR-NN-n` IDs, like `design_review.py` does for the design). The reviewer is OpenAI Codex when its CLI is installed, Claude otherwise; either way `design_review.py`, shipped inside that skill's directory, does the filing — round numbers, stable `DR-NN-n` proposal IDs, open proposals and the verdict are computed by that script, never by an agent.
 
 **Full auto:** `/maxPlanck-feeling-lucky` — runs the entire pipeline above in one command, no manual triggering between phases.
 
@@ -78,7 +82,9 @@ Skills are phase-named; agents are role-named, and the two sets must never colli
 
 **Release:** `/maxPlanck-report` — the Release Manager produces the 4-report handoff pack (internal release report, client release report, blog-style release note, QA checklist) in Markdown + HTML.
 
-Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
+**Configuration:** `/maxPlanck-config` — shows or changes which Claude model each agent runs on (see Agent Models below). Not a pipeline phase: it runs in the main context, drives the models applier script, and does not log to the workflow log.
+
+Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). `config` is unbound for the same reason but is neither a phase nor an orchestrator. See `.claude/skills/*/SKILL.md` for details.
 
 ## Multi-Component Projects
 
@@ -127,6 +133,16 @@ This repo is also a Claude Code plugin: `.claude-plugin/plugin.json` points `ski
 
 The log grows without bound — readers (Scrum Master, orchestrators) read only the current sprint's slice, not the whole file.
 
+## Agent Models
+
+Claude Code takes a subagent's model from the `model:` line in its agent file, and nothing else sets it per agent — so the choice lives in `.claude/maxPlanck-models.json`, a per-project file the installer creates with the defaults and never overwrites:
+
+```json
+{ "default": "sonnet", "agents": { "architect": "fable", "tech-lead": "fable", "developer": "opus", "design-reviewer": "opus", "plan-reviewer": "opus", "code-reviewer": "opus", "security": "opus", "devops": "opus" } }
+```
+
+The three reviewer entries are the Claude fallback: when the Codex CLI is installed, the design, plan and code reviews are done by Codex through their skills' helper scripts, and those models are not used. Keys under `agents` are role names without the prefix; values are whatever Claude Code accepts in `model:` (`sonnet`, `opus`, `haiku`, `fable`, `inherit`, or a full model id). Once the file exists it is the whole answer: a role not listed gets `default`. `bin/agent_models.py` (installed as `.claude/bin/maxPlanck-models.py`) copies it into the agent files — `setup.sh` runs it at install/update, and the `apply-agent-models.sh` SessionStart hook runs it at every session start so editing the JSON is enough. `show` prints the effective table; `set role=model …` edits the file and applies it in one validated step (`default=…` sets the fallback, an empty value drops an override); `reset` restores the defaults. `/maxPlanck-config` is the user-facing front for those commands and never edits the JSON or the agent files itself. In this repo the agent files carry the built-in defaults; a wiring test keeps them from drifting. Plugin installs cannot be rewritten and run with the shipped defaults. Codex is not a model setting: it is the design-review phase's own reviewer path (see above).
+
 ## Build & Test Commands
 
 Application code is created by agents during `/maxPlanck-develop`. Build and test commands depend on the tech stack chosen by the Architect — see the Build & Run Commands section in `docs/architecture.md`. In a multi-component project these are **per component**, as `###` subsections, and every command runs from the component's own directory.
@@ -145,7 +161,9 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns)
 - **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint; every open design review proposal ruled on in `## Design Review Log`
 - **Design Review:** `docs/sprints/sprint-NN/design-review.md` with a `## Round` section per run naming its reviewer (OpenAI Codex, or Claude as fallback with the reason), proposals under stable `DR-NN-n` IDs, an Open Proposals list, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict
-- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
+- **Plan:** `docs/sprints/sprint-NN/dev-plan.md` with an implementation order by component dependency, a section per story in scope mapping every acceptance criterion to a task with its files, per-component verification commands, and risks/open questions; no code written
+- **Plan Review:** `docs/sprints/sprint-NN/plan-review.md` with a `## Round` section per run naming its reviewer (OpenAI Codex, or Claude as fallback with the reason), proposals under stable `PR-NN-n` IDs, an Open Proposals list, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict; every open proposal ruled on in the plan's `## Plan Review Log`
+- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly, implementing the development plan's tasks in its order when one exists; all critical feedback from this sprint's reviews/security/test reports addressed
 - **Review:** Reports in `docs/sprints/sprint-NN/reviews/` with severity-categorized findings and APPROVED/NEEDS CHANGES verdict
 - **Security:** Security report in `docs/sprints/sprint-NN/security-report.md` with OWASP-mapped findings, ISR table (carried + new, stable IDs), and CLEAR/WARNINGS/CRITICAL FINDINGS verdict
 - **DevOps:** Terraform in the infra component's path, CI/CD in each component's CI workflow (both resolved from `docs/architecture.md`), deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict

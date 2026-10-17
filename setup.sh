@@ -276,6 +276,33 @@ render "$SCRIPT_DIR/bin/pipeline_dashboard.py" ".claude/bin/${PREFIX}-dashboard.
 chmod +x ".claude/bin/${PREFIX}-dashboard.py"
 ok "Installed ${PREFIX}-dashboard.py (python3 .claude/bin/${PREFIX}-dashboard.py)"
 
+# Agent models — which Claude model each agent runs on. Claude Code reads it
+# from each agent file's `model:` line, so the user's choice lives in
+# .claude/<prefix>-models.json (created with the defaults once, never
+# overwritten) and the applier copies it into the agent files just installed.
+# The SessionStart hook runs the same applier, so later edits take effect on
+# the next session without re-running this installer.
+render "$SCRIPT_DIR/bin/agent_models.py" ".claude/bin/${PREFIX}-models.py"
+chmod +x ".claude/bin/${PREFIX}-models.py"
+# The version stamp is rewritten further down, so here it still says whether
+# this is an update of an existing install.
+EXISTING_INSTALL=0
+[ -f ".claude/${PREFIX}-workflow-version.json" ] && EXISTING_INSTALL=1
+MODELS_INIT="$(python3 ".claude/bin/${PREFIX}-models.py" init)"
+if [ "$EXISTING_INSTALL" -eq 1 ] && [[ "$MODELS_INIT" == wrote* ]]; then
+  warn "New: agents now run on configurable models (.claude/${PREFIX}-models.json)."
+  warn "  Defaults: Architect and Tech Lead on fable; Developer, reviewers (Claude fallback"
+  warn "  behind Codex), Security and DevOps on opus (were sonnet); the rest on sonnet."
+  warn "  Edit the file to change that; it is never overwritten by updates."
+fi
+if MODELS_OUT="$(python3 ".claude/bin/${PREFIX}-models.py" apply --quiet)"; then
+  [ -n "$MODELS_OUT" ] && echo "$MODELS_OUT" | sed 's/^/    /'
+  ok "Installed ${PREFIX}-models.py; agent models from .claude/${PREFIX}-models.json"
+else
+  warn "Agent models not applied — fix .claude/${PREFIX}-models.json and run: python3 .claude/bin/${PREFIX}-models.py apply"
+  echo "$MODELS_OUT" | sed 's/^/    /'
+fi
+
 # Workflow conventions (ownership table, log format, Definition of Done).
 # Never clobber an existing CLAUDE.md — the workflow depends on these
 # conventions, so ask the user to merge manually instead.
@@ -319,25 +346,17 @@ settings_path = sys.argv[1]
 # existed) are removed so they don't produce agent-less log lines.
 LEGACY_KEY = "$CLAUDE_AGENT_NAME"
 
+def command_hook(script, *args):
+    command = " ".join(['"$CLAUDE_PROJECT_DIR"/.claude/hooks/' + script, *args])
+    return script, {"hooks": [{"type": "command", "command": command}]}
+
 workflow_hooks = {
-    "SubagentStart": ("log-agent-lifecycle.sh", {
-        "hooks": [{
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/log-agent-lifecycle.sh START"
-        }]
-    }),
-    "SubagentStop": ("log-agent-lifecycle.sh", {
-        "hooks": [{
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/log-agent-lifecycle.sh STOP"
-        }]
-    }),
-    "SessionStart": ("check-workflow-version.sh", {
-        "hooks": [{
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-workflow-version.sh"
-        }]
-    }),
+    "SubagentStart": [command_hook("log-agent-lifecycle.sh", "START")],
+    "SubagentStop": [command_hook("log-agent-lifecycle.sh", "STOP")],
+    "SessionStart": [
+        command_hook("check-workflow-version.sh"),
+        command_hook("apply-agent-models.sh"),
+    ],
 }
 
 try:
@@ -349,7 +368,7 @@ except (FileNotFoundError, json.JSONDecodeError):
 if "hooks" not in settings:
     settings["hooks"] = {}
 
-for event, (hook_key, hook_entry) in workflow_hooks.items():
+for event, wanted in workflow_hooks.items():
     entries = settings["hooks"].get(event, [])
 
     entries = [
@@ -360,13 +379,14 @@ for event, (hook_key, hook_entry) in workflow_hooks.items():
         )
     ]
 
-    already_installed = any(
-        hook_key in h.get("command", "")
-        for e in entries
-        for h in e.get("hooks", [])
-    )
-    if not already_installed:
-        entries.append(hook_entry)
+    for hook_key, hook_entry in wanted:
+        already_installed = any(
+            hook_key in h.get("command", "")
+            for e in entries
+            for h in e.get("hooks", [])
+        )
+        if not already_installed:
+            entries.append(hook_entry)
 
     settings["hooks"][event] = entries
 
@@ -449,7 +469,9 @@ echo "  /${PREFIX}-kickoff        — Product Owner writes PRD + stories from yo
 echo "  /${PREFIX}-ux             — UX Designer creates wireframes"
 echo "  /${PREFIX}-design         — Architect creates technical design"
 echo "  /${PREFIX}-design-review  — A second reviewer checks the design (OpenAI Codex if installed, Claude otherwise)"
-echo "  /${PREFIX}-develop        — Developer implements the code"
+echo "  /${PREFIX}-plan           — Tech Lead writes the development plan"
+echo "  /${PREFIX}-plan-review    — A second reviewer checks the plan (OpenAI Codex if installed, Claude otherwise)"
+echo "  /${PREFIX}-develop        — Developer implements the code, following the plan"
 echo "  /${PREFIX}-review         — Code Reviewer checks the implementation"
 echo "  /${PREFIX}-audit          — Security Reviewer audits and writes ISRs"
 echo "  /${PREFIX}-infra          — DevOps creates infrastructure and CI/CD"
@@ -460,7 +482,10 @@ echo "  /${PREFIX}-feeling-lucky  — Runs the entire pipeline automatically"
 echo "  /${PREFIX}-adopt          — Adopts an existing codebase (reverse-engineers founding docs)"
 echo "  /${PREFIX}-change         — Runs a change request through the team (docs stay in sync)"
 echo "  /${PREFIX}-report         — Generates the 4-report release pack (internal / client / release note / QA)"
+echo "  /${PREFIX}-config         — Shows or changes which Claude model each agent runs on"
 echo ""
+echo "  Agent models:      .claude/${PREFIX}-models.json (applied at every session start;"
+echo "                     /${PREFIX}-config or python3 .claude/bin/${PREFIX}-models.py show)"
 echo "  Watch a run live:  python3 .claude/bin/${PREFIX}-dashboard.py   (q to quit)"
 echo "  Inside herdr the dashboard opens itself as a side pane once the"
 echo "  workflow repo is linked: herdr plugin link $SCRIPT_DIR"

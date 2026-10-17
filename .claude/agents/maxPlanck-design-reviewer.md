@@ -2,7 +2,7 @@
 name: maxPlanck-design-reviewer
 description: Reviews the architecture design before development — through OpenAI Codex when its CLI is installed, by itself otherwise — and files improvement proposals for the Architect to evaluate. Use for design review.
 tools: Read, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 # Design Reviewer Agent

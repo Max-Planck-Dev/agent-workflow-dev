@@ -2,7 +2,7 @@
 name: maxPlanck-security
 description: Reviews code and architecture for security vulnerabilities, OWASP compliance, and generates Infrastructure Security Requirements (ISRs) for DevOps. Use for security audits, vulnerability assessment, and ISR generation.
 tools: Read, Grep, Glob, Write, Bash
-model: sonnet
+model: opus
 ---
 
 # Security Agent
