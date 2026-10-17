@@ -38,6 +38,8 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 | UX | Wireframes | ✅/❌ | docs/ux/ |
 | Design | Architecture Doc | ✅/❌ | docs/architecture.md |
 | Design Review | Design Review Report (reviewer named per round) | ✅/❌ | docs/sprints/sprint-NN/design-review.md |
+| Plan | Development Plan | ✅/❌ | docs/sprints/sprint-NN/dev-plan.md |
+| Plan Review | Plan Review Report (reviewer named per round) | ✅/❌ | docs/sprints/sprint-NN/plan-review.md |
 | Develop | Source Code | ✅/❌ | <component paths per the ## Components table in docs/architecture.md> |
 | Review | Review Reports | ✅/❌ | docs/sprints/sprint-NN/reviews/ |
 | Security | Security Report | ✅/❌ | docs/sprints/sprint-NN/security-report.md |
@@ -93,7 +95,8 @@ Before recommending the next phase, verify:
 
 - **Before UX:** PRD exists + at least 3 stories with acceptance criteria
 - **Before Design:** UX specs exist for P0/P1 stories
-- **Before Develop:** Architecture doc exists with data models, API endpoints, folder structure; if the design changed this sprint (a sprint-`<NN>` Change Log entry), `docs/sprints/sprint-<NN>/design-review.md` exists and none of its proposals is still open (each has a row in the doc's `## Design Review Log`)
+- **Before Plan:** Architecture doc exists with data models, API endpoints, folder structure; if the design changed this sprint (a sprint-`<NN>` Change Log entry), `docs/sprints/sprint-<NN>/design-review.md` exists and none of its proposals is still open (each has a row in the doc's `## Design Review Log`)
+- **Before Develop:** `docs/sprints/sprint-<NN>/dev-plan.md` exists with an implementation order and a section per story in scope; if `docs/sprints/sprint-<NN>/plan-review.md` exists, none of its proposals is still open (each has a row in the plan's `## Plan Review Log`)
 - **Before Review:** Code exists in the component paths specified by the architecture doc
 - **Before Security:** Code review completed **this sprint**, no unresolved critical issues
 - **Before DevOps:** Security report exists at `docs/sprints/sprint-<NN>/security-report.md`, no CRITICAL FINDINGS verdict

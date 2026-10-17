@@ -81,6 +81,6 @@ The reviewer reads those documents only — not the source code, and nothing und
 
 Say who reviewed in every case (e.g. "reviewed by OpenAI Codex" / "reviewed by Claude — Codex CLI is not installed").
 
-- If APPROVED: Tell the user "Design review passed. Run `/maxPlanck-develop` to have the Developer start building."
+- If APPROVED: Tell the user "Design review passed. Run `/maxPlanck-plan` to have the Tech Lead write the development plan."
 - If CHANGES PROPOSED: Tell the user "The review proposed design changes — see `docs/sprints/sprint-<NN>/design-review.md`. Run `/maxPlanck-design` so the Architect evaluates each proposal, then re-run `/maxPlanck-design-review`."
-- If UNAVAILABLE: Tell the user "The design review could not be completed (<reason>) — see `docs/sprints/sprint-<NN>/design-review.md`. Re-run `/maxPlanck-design-review`, or run `/maxPlanck-develop` to continue without it."
+- If UNAVAILABLE: Tell the user "The design review could not be completed (<reason>) — see `docs/sprints/sprint-<NN>/design-review.md`. Re-run `/maxPlanck-design-review`, or run `/maxPlanck-plan` to continue without it."

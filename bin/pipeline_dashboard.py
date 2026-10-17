@@ -47,6 +47,8 @@ ROLE_TO_PHASE = {
     "ux-designer": "ux",
     "architect": "design",
     "design-reviewer": "design-review",
+    "tech-lead": "plan",
+    "plan-reviewer": "plan-review",
     "developer": "develop",
     "code-reviewer": "review",
     "security": "audit",
@@ -59,13 +61,15 @@ ROLES = tuple(ROLE_TO_PHASE.keys())
 PHASE_ALIASES = {"security": "audit", "devops": "infra", "product-owner": "kickoff"}
 
 ORDERS = {
-    "feeling-lucky": ["kickoff", "ux", "design", "design-review", "develop", "review", "audit", "infra", "test", "sprint"],
-    "change": ["kickoff", "design", "develop", "review", "audit", "test", "sprint"],
+    "feeling-lucky": ["kickoff", "ux", "design", "design-review", "plan", "plan-review", "develop", "review", "audit", "infra", "test", "sprint"],
+    "change": ["kickoff", "design", "plan", "develop", "review", "audit", "test", "sprint"],
     "adopt": ["adopt"],
 }
-# design-review joined the pipeline after logs already existed: a run that
-# predates it must read as skipped, not as a missed phase.
-OPTIONAL = {"feeling-lucky": {"design-review"}, "change": {"design", "audit"}}
+# design-review, plan and plan-review joined the pipeline after logs already
+# existed: a run that predates them must read as skipped, not as a missed
+# phase. A change request slots design-review/plan-review in only when they
+# run (CANONICAL gives them their place).
+OPTIONAL = {"feeling-lucky": {"design-review", "plan", "plan-review"}, "change": {"design", "plan", "audit"}}
 # Reference ordering for phases an orchestrator adds that its kind's order
 # does not list (a change request that routes through infra, for example).
 CANONICAL = ORDERS["feeling-lucky"] + ["report"]

@@ -156,7 +156,7 @@ class ModernFeelingLuckyRunTests(unittest.TestCase):
             "[2026-09-25 17:20:43] START | Agent: maxPlanck-devops\n",
         ]
         run = pd.parse_log(lines, "maxPlanck", now=ts("2026-09-25 17:21:00"))
-        self.assertEqual(run.order, ["kickoff", "design", "develop", "review", "audit", "infra", "test", "sprint"])
+        self.assertEqual(run.order, ["kickoff", "design", "plan", "develop", "review", "audit", "infra", "test", "sprint"])
         self.assertEqual(run.phases["infra"].status, "running")
         self.assertEqual(run.current_phase(), "infra")
 
@@ -188,8 +188,8 @@ class DesignReviewTests(unittest.TestCase):
     def test_order_and_optional(self):
         run = self.parse([])
         self.assertEqual(run.order[run.order.index("design") + 1], "design-review")
-        self.assertEqual(run.order[run.order.index("design-review") + 1], "develop")
-        self.assertEqual(run.optional, ["design-review"])
+        self.assertEqual(run.order[run.order.index("design-review") + 1], "plan")
+        self.assertEqual(run.optional, ["design-review", "plan", "plan-review"])
 
     def test_reviewer_role_maps_to_the_phase(self):
         self.assertEqual(pd.role_of("maxPlanck-design-reviewer"), "design-reviewer")
@@ -261,7 +261,7 @@ class DesignReviewTests(unittest.TestCase):
             start,
             "[2026-10-06 10:05:00] PIPELINE | Agent: orchestrator | Phase design finished → routing to design-review | Reason: new endpoint\n",
         ], "maxPlanck", now=ts("2026-10-06 10:06:00"))
-        self.assertEqual(run.order[:4], ["kickoff", "design", "design-review", "develop"])
+        self.assertEqual(run.order[:5], ["kickoff", "design", "design-review", "plan", "develop"])
         self.assertEqual(run.phases["design-review"].status, "queued")
 
 
@@ -416,5 +416,114 @@ class HelperTests(unittest.TestCase):
             self.assertIs(run2, run)
 
 
+class PlanReviewPhaseTests(unittest.TestCase):
+    """The plan-review phase and its loop back to plan, mirroring design-review."""
+
+    START = "[2026-10-16 10:00:00] PIPELINE | Agent: orchestrator | Full pipeline started (sprint 04): x\n"
+
+    def parse(self, lines, now="2026-10-16 11:00:00"):
+        return pd.parse_log([self.START] + lines, "maxPlanck", now=ts(now))
+
+    def test_reviewer_role_maps_to_the_phase(self):
+        self.assertEqual(pd.role_of("maxPlanck-plan-reviewer"), "plan-reviewer")
+        self.assertEqual(pd.role_of("maxPlanck-tech-lead"), "tech-lead")
+        self.assertEqual(pd.norm_agent("maxplanck:maxPlanck-plan-reviewer", "maxPlanck"), "maxPlanck-plan-reviewer")
+        self.assertEqual(pd.infer_prefix(["[x] START | Agent: acme-plan-reviewer\n"]), "acme")
+
+    def test_loop_back_to_plan(self):
+        run = self.parse([
+            "[2026-10-16 10:10:00] PIPELINE | Agent: orchestrator | Phase plan finished → routing to plan-review | Reason: dev-plan.md written\n",
+            "[2026-10-16 10:10:05] START | Agent: maxPlanck-plan-reviewer\n",
+            "[2026-10-16 10:14:00] PIPELINE | Agent: orchestrator | Phase plan-review finished → routing to plan | Reason: CHANGES PROPOSED — 2 open proposals\n",
+            "[2026-10-16 10:14:05] START | Agent: maxPlanck-tech-lead\n",
+            "[2026-10-16 10:18:00] PIPELINE | Agent: orchestrator | Phase plan (re-run) finished → routing to plan-review | Reason: 2 accepted\n",
+            "[2026-10-16 10:18:05] START | Agent: maxPlanck-plan-reviewer\n",
+            "[2026-10-16 10:21:00] PIPELINE | Agent: orchestrator | Phase plan-review (re-run) finished → routing to develop | Reason: APPROVED\n",
+        ])
+        self.assertEqual([(l.src, l.dst) for l in run.loops], [("plan-review", "plan")])
+        self.assertEqual(run.phases["plan"].runs, 2)
+        self.assertEqual(run.phases["plan-review"].runs, 2)
+        self.assertEqual(run.phases["plan-review"].status, "done")
+        self.assertEqual(run.phases["develop"].status, "queued")
+
+    def test_change_run_slots_the_phase_only_when_it_appears(self):
+        start = "[2026-10-16 10:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 04): x\n"
+        run = pd.parse_log([start], "maxPlanck", now=ts("2026-10-16 10:01:00"))
+        self.assertNotIn("plan-review", run.order)
+        run = pd.parse_log([
+            start,
+            "[2026-10-16 10:05:00] PIPELINE | Agent: orchestrator | Phase plan finished → routing to plan-review | Reason: new endpoint\n",
+        ], "maxPlanck", now=ts("2026-10-16 10:06:00"))
+        self.assertEqual(run.order[run.order.index("plan") + 1], "plan-review")
+        self.assertEqual(run.order[run.order.index("plan-review") + 1], "develop")
+        self.assertEqual(run.phases["plan-review"].status, "queued")
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlanPhaseTests(unittest.TestCase):
+    """The plan phase sits between design-review and develop; fixes skip it."""
+
+    START = "[2026-10-16 10:00:00] PIPELINE | Agent: orchestrator | Full pipeline started (sprint 04): x\n"
+
+    def parse(self, lines, now="2026-10-16 11:00:00"):
+        return pd.parse_log([self.START] + lines, "maxPlanck", now=ts(now))
+
+    def test_order(self):
+        run = self.parse([])
+        self.assertEqual(run.order[run.order.index("plan") - 1], "design-review")
+        self.assertEqual(run.order[run.order.index("plan") + 1], "plan-review")
+        self.assertEqual(run.order[run.order.index("plan-review") + 1], "develop")
+        self.assertIn("plan", run.optional)
+        self.assertIn("plan-review", run.optional)
+        change = pd.parse_log(
+            ["[2026-10-16 10:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 04): x\n"],
+            "maxPlanck", now=ts("2026-10-16 10:01:00"),
+        )
+        self.assertEqual(change.order[change.order.index("plan") + 1], "develop")
+        self.assertIn("plan", change.optional)
+
+    def test_tech_lead_role_maps_to_the_phase(self):
+        self.assertEqual(pd.role_of("maxPlanck-tech-lead"), "tech-lead")
+        self.assertEqual(pd.norm_agent("maxplanck:maxPlanck-tech-lead", "maxPlanck"), "maxPlanck-tech-lead")
+        self.assertEqual(pd.infer_prefix(["[x] START | Agent: acme-tech-lead\n"]), "acme")
+
+    def test_tech_lead_start_runs_the_phase(self):
+        run = self.parse([
+            "[2026-10-16 10:10:00] PIPELINE | Agent: orchestrator | Phase design-review finished → routing to plan | Reason: APPROVED\n",
+            "[2026-10-16 10:10:05] START | Agent: maxPlanck-tech-lead\n",
+            "[2026-10-16 10:10:30] PROGRESS | Agent: maxPlanck-tech-lead | 3/6 | Planning story-002 (web)\n",
+        ], now="2026-10-16 10:11:00")
+        self.assertEqual(run.phases["plan"].status, "running")
+        self.assertEqual(run.current_phase(), "plan")
+        self.assertEqual(run.current_session().progress, (3, 6, "Planning story-002 (web)"))
+
+    def test_review_loop_goes_back_to_develop_not_plan(self):
+        run = self.parse([
+            "[2026-10-16 10:10:00] PIPELINE | Agent: orchestrator | Phase design-review finished → routing to plan | Reason: APPROVED\n",
+            "[2026-10-16 10:10:05] START | Agent: maxPlanck-tech-lead\n",
+            "[2026-10-16 10:20:00] PIPELINE | Agent: orchestrator | Phase plan finished → routing to develop | Reason: dev-plan.md written\n",
+            "[2026-10-16 10:20:05] START | Agent: maxPlanck-developer\n",
+            "[2026-10-16 10:40:00] PIPELINE | Agent: orchestrator | Phase develop finished → routing to review | Reason: builds\n",
+            "[2026-10-16 10:40:05] START | Agent: maxPlanck-code-reviewer\n",
+            "[2026-10-16 10:50:00] PIPELINE | Agent: orchestrator | Phase review finished → routing to develop | Reason: NEEDS CHANGES\n",
+            "[2026-10-16 10:50:05] START | Agent: maxPlanck-developer\n",
+            "[2026-10-16 10:58:00] PIPELINE | Agent: orchestrator | Phase develop (re-run) finished → routing to review | Reason: findings addressed\n",
+        ])
+        self.assertEqual([(l.src, l.dst) for l in run.loops], [("review", "develop")])
+        self.assertEqual(run.phases["plan"].runs, 1)
+        self.assertEqual(run.phases["plan"].status, "done")
+        self.assertEqual(run.phases["develop"].runs, 2)
+
+    def test_skipped_plan_in_a_change_request(self):
+        run = pd.parse_log([
+            "[2026-10-16 10:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 04): typo\n",
+            "[2026-10-16 10:05:00] PIPELINE | Agent: orchestrator | Phase plan skipped | Reason: trivial copy fix\n",
+            "[2026-10-16 10:05:01] PIPELINE | Agent: orchestrator | Phase kickoff finished → routing to develop | Reason: story updated\n",
+            "[2026-10-16 10:05:05] START | Agent: maxPlanck-developer\n",
+        ], "maxPlanck", now=ts("2026-10-16 10:06:00"))
+        self.assertEqual(run.phases["plan"].status, "skipped")
+        self.assertEqual(run.phases["plan"].last_reason, "trivial copy fix")
+        self.assertEqual(run.current_phase(), "develop")
