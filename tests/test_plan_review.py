@@ -308,6 +308,97 @@ class PlanReviewRunTests(unittest.TestCase):
         self.assertEqual((f["VERDICT"], f["LATEST"]), ("UNAVAILABLE", "unavailable"))
         self.assertIn("— unavailable", self.read(self.REPORT))
 
+    # ── PRP plan named by the story ──
+
+    PRP = ".claude/PRPs/plans/cards.plan.md"
+
+    def declare_prp(self, *values):
+        lines = "".join(f"**PRP plan:** {v}\n" for v in values)
+        self.write("docs/stories/story-001.md", "# Create cards\n\n" + lines)
+
+    def make_prp(self, rel=PRP):
+        os.makedirs(os.path.dirname(os.path.join(self.root, rel)), exist_ok=True)
+        self.write(rel, "# Plan: cards\n\n## Step-by-Step Tasks\n### Task 1: cards module\n")
+
+    def test_prp_plan_named_by_the_story_reaches_codex_and_the_prompt(self):
+        self.make_prp()
+        self.declare_prp(f"`{self.PRP}`")
+        out, _ = self.run_review(answer={"summary": "ok", "proposals": []})
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertIn(self.PRP, self.staged())
+        with open(self.log + ".prompt") as fh:
+            prompt = fh.read()
+        self.assertIn(f"- {self.PRP} — the PRP implementation plan the story plan maps onto", prompt)
+        brief = self.run_review(command="brief", path=os.path.join(self.tmp, "empty"))[0].stdout
+        self.assertIn(f"- {self.PRP}\n", brief)
+
+    def test_no_prp_line_means_no_prp_doc_and_no_prompt_line(self):
+        self.make_prp()
+        self.run_review(answer={"summary": "ok", "proposals": []})
+        self.assertFalse([p for p in self.staged() if p.startswith(".claude")])
+        with open(self.log + ".prompt") as fh:
+            self.assertNotIn("PRP", fh.read())
+
+    def test_invalid_prp_line_is_a_precondition(self):
+        self.make_prp()
+        outside = os.path.join(self.tmp, "outside")
+        os.makedirs(outside)
+        with open(os.path.join(outside, "x.plan.md"), "w") as fh:
+            fh.write("secret\n")
+        plans = os.path.join(self.root, ".claude", "PRPs", "plans")
+        os.symlink(os.path.join(outside, "x.plan.md"), os.path.join(plans, "leak.plan.md"))
+        os.symlink(outside, os.path.join(plans, "linked"))
+        self.write("docs/notes.plan.md", "x\n")
+        self.write(".claude/PRPs/plans/cards.md", "x\n")
+        cases = {
+            "absolute": ([os.path.join(self.root, self.PRP)], "absolute"),
+            "dotdot": ([".claude/PRPs/plans/../../../docs/notes.plan.md"], ".."),
+            "outside dir": (["docs/notes.plan.md"], "is not under"),
+            "suffix": ([".claude/PRPs/plans/cards.md"], "does not end in"),
+            "missing": ([".claude/PRPs/plans/nope.plan.md"], "does not exist"),
+            "final symlink": ([".claude/PRPs/plans/leak.plan.md"], "resolves outside"),
+            "dir symlink": ([".claude/PRPs/plans/linked/x.plan.md"], "resolves outside"),
+            "two lines": ([self.PRP, self.PRP], "2 PRP plan lines"),
+        }
+        for name, (values, why) in cases.items():
+            with self.subTest(name):
+                self.declare_prp(*values)
+                out, f = self.run_review(answer={"summary": "ok", "proposals": []})
+                self.assertEqual(out.returncode, pr.EXIT_PRECONDITION, out.stdout + out.stderr)
+                self.assertIn(why, f["ERROR"])
+                self.assertFalse(self.report_exists())
+
+    # ── Re-review only after CRITICAL/HIGH ──
+
+    def test_recheck_only_after_a_round_with_critical_or_high(self):
+        for severities, expected in ((["HIGH", "LOW"], "yes"), (["CRITICAL"], "yes"), (["MEDIUM", "LOW"], "no"), ([], "no")):
+            with self.subTest(severities):
+                if self.report_exists():
+                    os.remove(os.path.join(self.root, self.REPORT))
+                _, f = self.run_review(answer={"summary": "s", "proposals": [proposal(severity=s) for s in severities]})
+                self.assertEqual(f["RECHECK"], expected)
+
+    def test_recheck_never_after_the_second_round(self):
+        _, f = self.run_review(answer={"summary": "s", "proposals": [proposal()]})
+        self.assertEqual(f["RECHECK"], "yes")
+        self.decide(("PR-03-001-1", "ACCEPTED"))
+        _, f = self.run_review(answer={"summary": "s", "proposals": [proposal("Worse", "CRITICAL")]})
+        self.assertEqual((f["ROUND"], f["RECHECK"]), ("2", "no"))
+
+    def test_unavailable_round_counts_toward_the_cap(self):
+        out, f = self.run_review(command="file", extra=("--unavailable", "--reason", "no usable answer"))
+        self.assertEqual(f["RECHECK"], "no")
+        _, f = self.run_review(answer={"summary": "s", "proposals": [proposal()]})
+        self.assertEqual((f["ROUND"], f["RECHECK"]), ("2", "no"))
+
+    def test_status_reports_recheck(self):
+        self.assertFalse(self.status()["recheck"])
+        self.run_review(answer={"summary": "s", "proposals": [proposal()]})
+        self.assertTrue(self.status()["recheck"])
+        self.decide(("PR-03-001-1", "ACCEPTED"))
+        # Ruling does not change it: the orchestrator asks after the tech lead has ruled.
+        self.assertTrue(self.status()["recheck"])
+
     # ── State and preconditions ──
 
     def test_only_the_log_table_closes_a_proposal(self):

@@ -38,6 +38,7 @@ Each story file (`docs/stories/story-NNN.md`) must follow this template:
 **Persona:** <Who is this for?>
 **Components:** <comma-separated component IDs from docs/architecture.md — omit this line if unknown or not applicable>
 **Status:** Draft | In Progress | Done
+**PRP plan:** <.claude/PRPs/plans/<name>.plan.md — only when a human added it; omit otherwise>
 
 ## Description
 <What does the user want to do and why?>
@@ -64,6 +65,7 @@ Each story file (`docs/stories/story-NNN.md`) must follow this template:
 6. **Never silently rewrite a story** — when re-scoping an existing story (changed priority, added/removed acceptance criteria), make the edit AND append a `## History` entry stating what changed and why. New stories are new files; changed stories keep their file and gain history
 7. New stories start with `**Status:** Draft`. Only the Scrum Master updates Status afterward
 8. Read existing docs before creating new ones to avoid duplication
+9. **The `**PRP plan:**` line is a human's.** It points the Tech Lead at a detailed implementation plan a person wrote for that story. Keep it as it is when you edit a story; never add, invent or change one yourself
 
 ## Logging
 

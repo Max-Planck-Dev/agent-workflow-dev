@@ -22,7 +22,8 @@ security audit or QA, or a project without a current story).
 works on a temporary copy of the in-scope component paths (per the
 `## Components` table of docs/architecture.md, never anything under
 `### Excluded Paths`) plus the architecture doc, the stories, the UX specs,
-this sprint's development plans and earlier review reports, in its read-only
+this sprint's development plans (with the PRP plans their stories declare
+under .claude/PRPs/plans/) and earlier review reports, in its read-only
 sandbox, and must answer as JSON matching a schema. When Codex cannot review (not installed, turned off for the
 project with --skip-if-exists, not logged in, timeout, unusable answer, code
 too large to send) nothing is written and the exit status says to use the
@@ -69,6 +70,8 @@ COMPLIANCE_LABELS = {
     "confined_to_components": "Changes are confined to the components the story targets",
 }
 REVIEWED_DOCS = ("architecture.md", "stories", "ux")
+PRP_DIR = os.path.join(".claude", "PRPs", "plans")
+PRP_SUFFIX = ".plan.md"
 # Never worth sending, and often huge.
 SKIP_DIRS = {".git", "node_modules", "dist", "build", "out", "target", "vendor", "coverage", "tmp",
              "__pycache__", ".venv", "venv", ".terraform", ".next", ".cache", ".idea", ".vscode", ".pytest_cache"}
@@ -90,6 +93,7 @@ PLAN_FILE_RE = re.compile(r"^story-\d{3,}-plan\.md$")
 CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
 UNSAFE_REASON_RE = re.compile(r"[^A-Za-z0-9 .,:;()/_=+@%—-]+")
+PRP_LINE_RE = re.compile(r"^\*\*PRP plan:\*\*\s*(.*?)\s*$", re.M)
 VERDICT_LINE_RE = re.compile(r"^\*\*Verdict:\*\*\s*(APPROVED|NEEDS CHANGES)\s*$", re.M)
 
 SCHEMA = {
@@ -157,7 +161,7 @@ Everything you need is in this directory:
 - docs/stories/ — the user stories with their acceptance criteria
 - docs/ux/ — the UX specs, if any
 - docs/sprints/sprint-{sprint}/plans/ — the development plan per story (tasks, files, verification), if any; a story's code should implement its plan
-- docs/sprints/*/reviews/ — earlier review reports, if any; a story reviewed before gets a note on whether those findings were resolved
+{prp}- docs/sprints/*/reviews/ — earlier review reports, if any; a story reviewed before gets a note on whether those findings were resolved
 - the source code, one directory per component:
 {components}
 
@@ -165,7 +169,7 @@ Review these files only; do not look for the rest of the project.
 
 {focus}For each story you review, check:
 1. It follows the architecture doc's folder structure, data models and API contracts.
-2. It implements the story's acceptance criteria — and the tasks of its plan, when docs/sprints/sprint-{sprint}/plans/ has one.
+2. It implements the story's acceptance criteria — and the tasks of its plan{prp_tasks}, when docs/sprints/sprint-{sprint}/plans/ has one.
 3. Language- and framework-specific best practices, per that component's stack in the architecture doc.
 4. Changes are confined to the components the story targets.
 5. No code duplication, consistent naming, error handling where needed.
@@ -175,6 +179,9 @@ Severity means impact: "critical" the story does not work, violates the architec
 Security issues (XSS, injection, secrets, auth) belong to a separate security review: put them under flagged_for_security with a location and a one-line concern, not among the findings.
 
 A story with no implementation yet goes under not_reviewed with the reason. An empty findings list is a valid review of a story whose code is sound. This is sprint {sprint}.
+"""
+
+PRP_DOC = """- .claude/PRPs/plans/ — the PRP implementation plans some story plans map onto (the story's **PRP plan:** line names it); code should implement those tasks too
 """
 
 FOCUS_ONE = """This run reviews {story} only — the story the developer has just implemented. The rest of the code is context: read whatever you need to judge {story}, but report findings only for {story}, and name no other story in your answer. If {story} has no implementation yet, list it under not_reviewed.
@@ -439,6 +446,40 @@ def sendable(path: str) -> bool:
         return False
 
 
+def prp_plan(root: str, story: str) -> Optional[str]:
+    """Project-relative path of the PRP plan the story declares with one
+    `**PRP plan:**` line, confined to PRP_DIR (symlinks anywhere along it
+    included) — None when it declares none or the line is not usable. The
+    plan review stops on a bad line; the code review just leaves it out."""
+    values = PRP_LINE_RE.findall(read(os.path.join(root, "docs", "stories", f"{story}.md")))
+    if len(values) != 1:
+        return None
+    value = unquote(values[0])
+    if not value or os.path.isabs(value) or ".." in re.split(r"[\\/]", value):
+        return None
+    norm = os.path.normpath(value)
+    if not norm.startswith(PRP_DIR + os.sep) or not norm.endswith(PRP_SUFFIX):
+        return None
+    real = os.path.realpath(os.path.join(root, norm))
+    if not under(real, os.path.realpath(os.path.join(root, PRP_DIR))) or not sendable(real):
+        return None
+    return norm
+
+
+def prp_plans(root: str, sprint: str) -> List[str]:
+    """The PRP plans declared by the stories that have a plan this sprint, without duplicates."""
+    plans = os.path.join(sprint_dir(root, sprint), "plans")
+    if not os.path.isdir(plans):
+        return []
+    found: List[str] = []
+    for name in sorted(os.listdir(plans)):
+        if PLAN_FILE_RE.match(name):
+            prp = prp_plan(root, name[: -len("-plan.md")])
+            if prp and prp not in found:
+                found.append(prp)
+    return found
+
+
 def doc_files(root: str, sprint: str, architecture: str) -> List[str]:
     """Project-relative paths of the docs a reviewer reads, in a stable order.
 
@@ -471,6 +512,7 @@ def doc_files(root: str, sprint: str, architecture: str) -> List[str]:
         if os.path.isdir(plans) and doc_link_ok(plans, roots):
             found += [os.path.relpath(os.path.join(plans, f), root) for f in sorted(os.listdir(plans))
                       if PLAN_FILE_RE.match(f) and ok(os.path.join(plans, f))]
+            found += prp_plans(root, sprint)
         for folder in sorted(os.listdir(sprints)):
             reviews = os.path.join(sprints, folder, "reviews")
             if os.path.isdir(reviews) and doc_link_ok(reviews, roots):
@@ -750,7 +792,9 @@ def component_lines(root: str, architecture: str) -> str:
 
 def brief(root: str, ctx: dict) -> str:
     focus = FOCUS_ONE.format(story=ctx["story"]) if ctx["story"] else FOCUS_ALL
-    return PROMPT.format(sprint=ctx["sprint"], components=component_lines(root, ctx["architecture"]), focus=focus)
+    has_prp = any(d.startswith(PRP_DIR + os.sep) for d in doc_files(root, ctx["sprint"], ctx["architecture"]))
+    return PROMPT.format(sprint=ctx["sprint"], components=component_lines(root, ctx["architecture"]), focus=focus,
+                         prp=PRP_DOC if has_prp else "", prp_tasks=" (and of the PRP plan it maps onto)" if has_prp else "")
 
 
 def fallback(reason: str) -> int:

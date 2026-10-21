@@ -25,7 +25,7 @@ Stories are built **one at a time**: a run of yours implements one story — the
 Before writing ANY code, you MUST read:
 
 1. **Which story** — the one named in the request, else `docs/sprints/sprint-<NN>/.current-story` (determine `<NN>` from `docs/sprints/.current-sprint`); neither means a fix pass. State it in the log
-2. The story's development plan at `docs/sprints/sprint-<NN>/plans/<story>-plan.md`, if it exists, and the plan index `docs/sprints/sprint-<NN>/dev-plan.md` — follow the plan's implementation order and work through its tasks; when a task and the architecture doc disagree, the architecture doc wins and you log the discrepancy. Without a plan, work from the architecture doc and the story directly and say so in the log
+2. The story's development plan at `docs/sprints/sprint-<NN>/plans/<story>-plan.md`, if it exists, and the plan index `docs/sprints/sprint-<NN>/dev-plan.md` — follow the plan's implementation order and work through its tasks; when a task and the architecture doc disagree, the architecture doc wins and you log the discrepancy. Without a plan, work from the architecture doc and the story directly and say so in the log. When the plan has a `**PRP plan:**` line, read that PRP plan too: its tasks, patterns and gotchas are the detail behind the plan's `PRP Task N` rows — and where it disagrees with the architecture doc, the architecture doc wins
 3. The user story in `docs/stories/<story>.md`
 4. The architecture doc at `docs/architecture.md`
 5. The UX spec in `docs/ux/` (if it exists for this story)
@@ -33,6 +33,7 @@ Before writing ANY code, you MUST read:
    - `docs/sprints/sprint-<NN>/reviews/<story>-review.md` — code review findings for this story (every report under `reviews/` in a fix pass)
    - `docs/sprints/sprint-<NN>/security-report.md` — if the verdict is CRITICAL FINDINGS, fixing those findings is your first priority
    - `docs/sprints/sprint-<NN>/test-plans/` — if any report says FAIL, the failing tests and bug table tell you exactly what to fix
+   - `docs/sprints/sprint-<NN>/integration-gate.md` — if its latest attempt is FAIL, the components it names do not build: fixing them is your priority (the output tail of each failure is there)
 7. Any existing code in the target directory to avoid conflicts — the earlier stories of this sprint are already built; build on them
 8. **Which component(s) this story touches** — from the plan's `**Component(s):**` line, else the story's `**Components:**` line, else inferred from the `## Components` table. State your choice in the log.
 
@@ -46,10 +47,17 @@ Before writing ANY code, you MUST read:
 6. Write to component paths specified in the architecture doc only — never modify `docs/` or other agent outputs
 7. Do not write test files — the QA Tester owns test files (`*.test.*`, `*.spec.*`, test config). Inline assertions for your own debugging are fine but delete them before finishing
 8. **Run build and test commands from the component's own directory**, using that component's subsection of `## Build & Run Commands`. Never run a bare command from the project root, and never substitute a different package manager or installer — `npm ci` and `npm install` are not interchangeable, and swapping them can rewrite a lock file
-9. **Verify only the components you changed**, and report build status per component
+9. **Verify each component you changed, from its directory: its `Check` command, then its `Test (focused)` command** with the component-relative paths of the files you created or modified (deleted files left out, each path quoted) in place of `<files>`. No `Check` line → run its `Build` instead; no `Test (focused)` line → focused tests are `NONE`. Do not run the full `Build`/`Test` on top — the integration gate builds every component once after the last story, and QA runs the full suites
 10. **Never read, write, or scan anything under `### Excluded Paths`** in `docs/architecture.md` — those paths are not part of this product
 11. When invoked to address feedback (review findings, security findings, failing tests): fix ALL critical findings, and for each warning either fix it or log an explicit one-line justification for deferring it — never silently drop warnings
-12. **Stay on your story.** Implement the story you were given, not the ones after it in the plan index; touch earlier stories' code only to integrate with it or to fix a finding that names it. The plan is never redone for fixes — the failing report is the work order
+12. **Log a VERDICT line per component you changed** before finishing — the orchestrator routes on these lines and does not re-run your checks:
+
+    ```bash
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] VERDICT | Agent: maxPlanck-developer | <story or all>: <component ID> check PASS|FAIL, focused tests PASS|FAIL|NONE | Output: <component path>" >> logs/agent-workflow.log
+    ```
+
+    Fix and re-run until both pass; if one stays FAIL, log it as FAIL and say so in your final report
+13. **Stay on your story.** Implement the story you were given, not the ones after it in the plan index; touch earlier stories' code only to integrate with it or to fix a finding that names it. The plan is never redone for fixes — the failing report is the work order
 
 ## Logging
 

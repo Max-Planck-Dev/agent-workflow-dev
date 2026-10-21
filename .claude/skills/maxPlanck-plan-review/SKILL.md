@@ -43,7 +43,7 @@ HELPER="${CLAUDE_SKILL_DIR}/plan_review.py"
 
    - Exit status 0 — Codex reviewed and the round is filed. Skip step 3
    - Exit status 3 — Codex did not review: it is not installed, it is turned off for this project, or the run failed. The `FALLBACK=` line says which, and nothing was written: you are the reviewer, go to step 3 with that reason
-   - Exit status 2 — relay the `ERROR=` line to the user and stop (for a missing plan or no story selected: run `/maxPlanck-plan` first)
+   - Exit status 2 — relay the `ERROR=` line to the user and stop (for a missing plan or no story selected: run `/maxPlanck-plan` first; for a bad `**PRP plan:**` line in the story: a human fixes or removes it)
 3. **Fallback: you review** — only when Codex did not. Run `python3 "$HELPER" brief [--story <id>]`, follow it as your agent definition's When You Are the Reviewer section describes, and file your answer with the story and round `brief` printed and the `FALLBACK=` reason from step 2, copied exactly, in single quotes:
 
    ```bash
@@ -54,11 +54,11 @@ HELPER="${CLAUDE_SKILL_DIR}/plan_review.py"
 
    If it is rejected (exit status 4), fix what the `ERROR=` line names and file again, at most twice more; after that file `python3 "$HELPER" file --story <id> --unavailable --reason '<what went wrong, in a few plain words>'`
 4. **Read what was filed** — read `docs/sprints/sprint-<NN>/plan-reviews/<story>-plan-review.md` (the `REPORT` line gives the path) and confirm the new `## Round` section is there and names the right reviewer. Do not edit it
-5. **Log everything** — log the story, who reviewed (and why, if it was the fallback) and the verdict to `logs/agent-workflow.log`
+5. **Log everything** — log the story, who reviewed (and why, if it was the fallback), the verdict and the `RECHECK=` value to `logs/agent-workflow.log`. `RECHECK=yes` means this round raised a CRITICAL or HIGH proposal, so the plan gets one more round once the Tech Lead has ruled; `RECHECK=no` means it does not (the helper also says no once two rounds have run — the pipeline never runs a third)
 
 ## What the Review Covers
 
-`docs/sprints/sprint-<NN>/plans/<story>-plan.md`, checked against `docs/architecture.md`, `docs/prd.md`, `docs/stories/<story>.md`, `docs/ux/`, the sprint's plan index (`dev-plan.md`), and the inventory of source files that exist today:
+`docs/sprints/sprint-<NN>/plans/<story>-plan.md` — and, when the story declares one with a `**PRP plan:**` line, the PRP plan it maps onto under `.claude/PRPs/plans/`, which is part of the plan under review (its tasks, paths, commands, order and fidelity to the architecture; not its prose style) — checked against `docs/architecture.md`, `docs/prd.md`, `docs/stories/<story>.md`, `docs/ux/`, the sprint's plan index (`dev-plan.md`), and the inventory of source files that exist today:
 
 - Coverage — every acceptance criterion of the story maps to a task
 - Fidelity to the design — only the models, endpoints, paths, stacks and commands the architecture doc defines
@@ -84,5 +84,5 @@ The reviewer reads the plan, the docs and the file inventory; of the source code
 Say which story and who reviewed in every case (e.g. "story-003 reviewed by OpenAI Codex" / "reviewed by Claude — Codex CLI not installed").
 
 - If APPROVED: Tell the user "Plan review for `<story>` passed. Run `/maxPlanck-develop` to have the Developer build it."
-- If CHANGES PROPOSED: Tell the user "The review proposed changes to the plan for `<story>` — see `docs/sprints/sprint-<NN>/plan-reviews/<story>-plan-review.md`. Run `/maxPlanck-plan` so the Tech Lead evaluates each proposal, then re-run `/maxPlanck-plan-review`."
+- If CHANGES PROPOSED: Tell the user "The review proposed changes to the plan for `<story>` — see `docs/sprints/sprint-<NN>/plan-reviews/<story>-plan-review.md`. Run `/maxPlanck-plan` so the Tech Lead evaluates each proposal; re-run `/maxPlanck-plan-review` only if this round printed `RECHECK=yes` (it had a CRITICAL or HIGH proposal) — otherwise go on to `/maxPlanck-develop`."
 - If UNAVAILABLE: Tell the user "The plan review for `<story>` could not be completed (<reason>) — see `docs/sprints/sprint-<NN>/plan-reviews/<story>-plan-review.md`. Re-run `/maxPlanck-plan-review`, or run `/maxPlanck-develop` to continue without it."

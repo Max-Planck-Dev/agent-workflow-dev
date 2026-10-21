@@ -37,6 +37,13 @@ Architect records them as three rows in the `## Components` table of `docs/archi
 - Run frontend tests: `cd frontend && npx vitest`
 - Run backend tests: `cd backend && npx jest`
 
+### Per-component quick checks (run from the component directory)
+Commands below are relative to the component's directory — no `cd`. `<files>` is where the component-relative paths of the changed files go.
+- frontend — Check: `npx --no-install tsc --noEmit -p tsconfig.app.json && npm run lint`
+- frontend — Test (focused): `npx --no-install vitest related --run --passWithNoTests <files>`
+- backend — Check: `npx --no-install tsc --noEmit -p tsconfig.json && npx --no-install eslint "src/**/*.ts"` (not `npm run lint`, which in Nest runs with `--fix`)
+- backend — Test (focused): `npx --no-install jest --findRelatedTests <files> --passWithNoTests`
+
 ## Infrastructure / IaC
 - IaC Tool: Terraform
 - Cloud Provider: AWS

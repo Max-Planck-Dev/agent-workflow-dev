@@ -87,7 +87,7 @@ Within each component: <layer order, e.g. models → services → controllers �
 **Contracts touched:** <data models / endpoints from the architecture doc, by name — the Developer implements these exactly>
 **UX to honour:** <the docs/ux/ spec sections that apply, or "none">
 **Done when:** <observable outcome, in one or two lines>
-**Verification:** <each touched component's build and test commands, from its `## Build & Run Commands` subsection, run from the component's own directory>
+**Verification:** <each touched component's `Check` and `Test (focused)` commands (its `Build` when it has no `Check` line), from its `## Build & Run Commands` subsection, run from the component's own directory>
 
 ## Risks & Open Questions
 | # | Risk / question | Impact | Suggested handling |
@@ -100,6 +100,19 @@ Within each component: <layer order, e.g. models → services → controllers �
 | PR-NN-SSS-1 | ... | ACCEPTED \| PARTIAL \| REJECTED | ... |
 ```
 
+## PRP Plan
+
+A story may name a PRP implementation plan written by a human, with a line `**PRP plan:** .claude/PRPs/plans/<name>.plan.md` in `docs/stories/story-NNN.md`. When it does, read that file: it already holds the detailed tasks, patterns, snippets and gotchas, so the story plan **references it instead of transcribing it**:
+
+- Add `**PRP plan:** <path>` to the story plan's header, under `**Story:**`
+- Do not copy its code snippets, patterns, mandatory reading or gotchas — the Developer reads the PRP itself
+- `## Implementation Order` lists the component order; within a component it may say "follow the PRP's Step-by-Step Tasks"
+- `## Tasks` is the mapping from acceptance criteria to the PRP: one row per PRP task, `PRP Task N — <name>` in the Task column and that task's files in the Files column. Add tasks of your own only for an acceptance criterion the PRP does not cover
+- Where the PRP contradicts `docs/architecture.md`, the architecture doc wins: plan it the architecture's way and note the conflict under Risks & Open Questions
+- `**Verification:**` and `## Risks & Open Questions` are still required, and the `## Implementation Order` and `## Tasks` headings must be there even when they are short — the orchestrator checks for them
+
+The PRP plan is part of the plan the Plan Reviewer checks. You never edit it; a proposal against it is applied in the story plan (an extra task, a corrected path) and recorded in the log as usual.
+
 ## Plan Review Proposals
 
 A plan review runs after you — by OpenAI Codex when its CLI is installed, by a Claude agent otherwise — and files improvement proposals in `docs/sprints/sprint-<NN>/plan-reviews/story-NNN-plan-review.md`. Whenever that file exists for the story you are planning, it is a work order: **every open proposal gets a decision from you.** A proposal is open when its ID (`PR-<NN>-<SSS>-<n>`, where `SSS` is the story number) has no row in the `## Plan Review Log` of that story's plan.
@@ -109,6 +122,10 @@ You are the decision-maker — the reviewer proposes, you decide. Judge each pro
 - **ACCEPTED** — the proposal is right. Apply it to the affected sections of the plan, then record what changed.
 - **PARTIAL** — part of it is right. Apply that part; record what you applied and why you left the rest.
 - **REJECTED** — it is wrong, out of scope, or not worth its cost. Change nothing; record the reason.
+
+**Fast-path for LOW and mechanical proposals** (a typo, a path, a command to copy from the architecture doc, formatting): check them against the architecture doc and the file inventory in one pass, then ACCEPT and apply (`mechanical — applied`) or REJECT with the one-line reason. Spend your deliberation on CRITICAL, HIGH and MEDIUM.
+
+Normally there is one review round; a second runs only when the first had a CRITICAL or HIGH proposal, and the pipeline never runs a third — rule as if your decision is final.
 
 For every open proposal, append one row to the `## Plan Review Log` table of that story's plan (create the section at the end if it is not there yet): the proposal ID, the date, exactly one of `ACCEPTED`, `PARTIAL`, `REJECTED`, and the rationale. The pipeline reads that table to know a proposal is closed, so keep its four columns in that order and write the ID and the disposition exactly. The log is append-only: never edit or delete an earlier row, and never give a proposal a second row — if a later round disputes a rejection, that arrives as a new proposal with its own ID.
 

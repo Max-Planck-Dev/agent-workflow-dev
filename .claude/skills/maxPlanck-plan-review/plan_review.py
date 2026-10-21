@@ -20,7 +20,8 @@ starts a story's plan). Without either there is nothing to review.
 
 `run` asks the OpenAI Codex CLI for the review and files the round. Codex
 works on a temporary copy of the story's plan, the sprint's plan index
-(dev-plan.md, when it exists) and the design docs plus an inventory of the
+(dev-plan.md, when it exists), the PRP plan the story declares with a
+`**PRP plan:**` line (confined to .claude/PRPs/plans/) and the design docs plus an inventory of the
 in-scope source files (their paths only — never their contents, which the
 code review sends later), in its read-only sandbox, and must answer as JSON
 matching a schema. When Codex cannot review (not installed, turned off for
@@ -31,7 +32,10 @@ nothing is written and the exit status says to use the fallback reviewer.
 schema for that fallback reviewer; `file` validates the reviewer's JSON answer
 (stdin) against the same rules and files the round exactly as `run` would, or
 files an unavailable round with --unavailable. `status` prints the current
-state as JSON. Standard library only.
+state as JSON. Both `file`/`run` (RECHECK=yes|no) and `status` ("recheck") say
+whether the plan should be reviewed again after the tech lead's ruling: only
+when the latest round succeeded with a CRITICAL or HIGH proposal, and never
+past two rounds in total. Standard library only.
 
 Exit codes: 0 done, 2 a precondition failed, 3 Codex could not review (use the
 fallback reviewer), 4 the answer given to `file` was rejected.
@@ -60,6 +64,10 @@ SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW")
 DISPOSITIONS = ("ACCEPTED", "PARTIAL", "REJECTED")
 PROPOSAL_FIELDS = ("title", "severity", "section", "problem", "proposal")
 REVIEWED_DOCS = ("architecture.md", "prd.md", "stories", "ux")
+MAX_ROUNDS = 2  # the pipeline re-reviews a plan once at most
+RECHECK_SEVERITIES = ("CRITICAL", "HIGH")
+PRP_DIR = os.path.join(".claude", "PRPs", "plans")
+PRP_SUFFIX = ".plan.md"
 ID_PREFIX = "PR"
 LOG_HEADING = "## Plan Review Log"
 INVENTORY = "code-inventory.txt"
@@ -77,6 +85,7 @@ EXIT_REJECTED = 4
 SPRINT_RE = re.compile(r"^\d{2,3}$")
 STORY_RE = re.compile(r"^story-(\d{3,})$")
 ROUND_RE = re.compile(r"^## Round (\d+) — \S+( — unavailable)?\s*$", re.M)
+PRP_LINE_RE = re.compile(r"^\*\*PRP plan:\*\*\s*(.*?)\s*$", re.M)
 CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
 # Reasons travel through shell command lines written by an agent: keep them to
@@ -111,7 +120,7 @@ PROMPT = """You are a senior engineer reviewing a tech lead's development plan f
 
 Everything you need is in this directory:
 - docs/sprints/sprint-{sprint}/plans/{story}-plan.md — the plan under review: how {story} will be built
-- docs/sprints/sprint-{sprint}/dev-plan.md — the sprint's plan index: the order the stories are built in, scaffolding, what is out of scope (if it exists)
+{prp}- docs/sprints/sprint-{sprint}/dev-plan.md — the sprint's plan index: the order the stories are built in, scaffolding, what is out of scope (if it exists)
 - docs/architecture.md — the approved design the plan must implement; the plan may not depart from it
 - docs/prd.md, docs/stories/, docs/ux/ — the requirements and specs; docs/stories/{story}.md is the story this plan covers
 - {inventory} — the paths of the source files that exist today in the in-scope components (paths only, no contents)
@@ -123,7 +132,7 @@ Review the plan for:
 1. Coverage — every acceptance criterion of {story} maps to at least one task; nothing the story needs is missing without a stated reason.
 2. Fidelity to the design — tasks use the data models, API contracts, folder structure, stacks and commands of docs/architecture.md, and nothing that is not in it.
 3. Order — components and layers are built in dependency order, so each task can be verified when it is done; the plan respects the story order in the plan index.
-4. Concreteness — each task names its files with a verb (create/modify); "modify" tasks name files that exist in the inventory, "create" tasks put files where the architecture's folder structure says.
+4. Concreteness — each task{prp_tasks} names its files with a verb (create/modify); "modify" tasks name files that exist in the inventory, "create" tasks put files where the architecture's folder structure says.
 5. Verification — the build/test commands are the right ones for each component touched, run from that component's directory.
 6. Risk — missing failure and edge-case handling, work that is hidden or underestimated, and open questions the plan should raise for the architect.
 
@@ -146,6 +155,9 @@ Answer with one JSON object and nothing else, matching this schema exactly (no e
 {schema}
 
 File it with:  file --story {story} --round {round} --reason '<why Codex did not review>'
+"""
+
+PRP_DOC = """- {path} — the PRP implementation plan the story plan maps onto: it is part of the plan under review. Check its tasks, file paths, commands, order and fidelity to docs/architecture.md as you check the story plan; a story-plan task that names a PRP task must exist there. Its prose style is not in scope.
 """
 
 REREVIEW = """
@@ -211,6 +223,20 @@ def verdict(open_count: int, latest_ok: bool) -> str:
     return "APPROVED" if latest_ok else "UNAVAILABLE"
 
 
+def latest_severities(report: str, sprint: str, story: str) -> List[str]:
+    """Severities of the proposals filed in the last round of the report."""
+    starts = [m.start() for m in ROUND_RE.finditer(report)]
+    return [severity for _, severity, _ in filed(report[starts[-1]:], sprint, story)] if starts else []
+
+
+def recheck(history: List[bool], severities: List[str]) -> bool:
+    """Whether the pipeline should review the plan again once the tech lead
+    has ruled: only after a successful round that raised a CRITICAL or HIGH
+    proposal, and never past MAX_ROUNDS rounds in total (an unavailable
+    round counts toward the cap)."""
+    return bool(history) and history[-1] and len(history) < MAX_ROUNDS and any(s in RECHECK_SEVERITIES for s in severities)
+
+
 def state(report: str, plan: str, sprint: str, story: str) -> dict:
     decided = decisions(plan)
     proposals = filed(report, sprint, story)
@@ -226,6 +252,7 @@ def state(report: str, plan: str, sprint: str, story: str) -> dict:
         "open": [p[0] for p in still_open],
         "open_detail": still_open,
         "verdict": None if latest_ok is None else verdict(len(still_open), latest_ok),
+        "recheck": recheck(history, latest_severities(report, sprint, story)),
     }
 
 
@@ -283,6 +310,44 @@ def report_path(root: str, sprint: str, story: str) -> str:
     return os.path.join(sprint_dir(root, sprint), "plan-reviews", f"{story}-plan-review.md")
 
 
+def prp_problem(root: str, value: str) -> Optional[str]:
+    """Why a declared PRP plan path may not be read, or None when it may.
+    The path comes from a story file, so it is confined to PRP_DIR — symlinks
+    anywhere along it included."""
+    if not value:
+        return "is empty"
+    if os.path.isabs(value):
+        return "is an absolute path"
+    if ".." in re.split(r"[\\/]", value):
+        return "climbs out with .."
+    norm = os.path.normpath(value)
+    if not norm.startswith(PRP_DIR + os.sep):
+        return f"is not under {PRP_DIR}"
+    if not norm.endswith(PRP_SUFFIX):
+        return f"does not end in {PRP_SUFFIX}"
+    real = os.path.realpath(os.path.join(root, norm))
+    if not under(real, os.path.realpath(os.path.join(root, PRP_DIR))):
+        return f"resolves outside {PRP_DIR}"
+    if not os.path.isfile(real):
+        return "does not exist"
+    return None
+
+
+def prp_plan(root: str, story: str) -> Optional[str]:
+    """Project-relative path of the PRP plan the story declares with a
+    `**PRP plan:**` line, or None when it declares none."""
+    values = PRP_LINE_RE.findall(read(os.path.join(root, "docs", "stories", f"{story}.md")))
+    if not values:
+        return None
+    if len(values) > 1:
+        raise Precondition(f"docs/stories/{story}.md declares {len(values)} PRP plan lines — keep one")
+    value = unquote(values[0])
+    problem = prp_problem(root, value)
+    if problem:
+        raise Precondition(f"docs/stories/{story}.md declares PRP plan {value!r}, which {problem} — fix or remove the line")
+    return os.path.normpath(value)
+
+
 def review_docs(root: str, sprint: str, story: str, architecture: str) -> List[str]:
     """Project-relative paths of every document a reviewer reads, in a stable order.
 
@@ -305,6 +370,9 @@ def review_docs(root: str, sprint: str, story: str, architecture: str) -> List[s
     if os.path.isfile(index) and doc_link_ok(index, roots):
         found.append(os.path.relpath(index, root))
     found.append(os.path.relpath(plan_path(root, sprint, story), root))
+    prp = prp_plan(root, story)
+    if prp:
+        found.append(prp)
     earlier = report_path(root, sprint, story)
     if os.path.isfile(earlier):
         found.append(os.path.relpath(earlier, root))
@@ -616,11 +684,13 @@ def load(root: str, story_arg: str) -> dict:
     report = read(path)
     before = state(report, plan, sprint, story)
     return {"sprint": sprint, "story": story, "path": path, "report": report, "plan": plan, "architecture": architecture,
-            "number": before["rounds"] + 1, "next_id": before["next_id"]}
+            "prp": prp_plan(root, story), "number": before["rounds"] + 1, "next_id": before["next_id"]}
 
 
 def brief(ctx: dict) -> str:
     return PROMPT.format(sprint=ctx["sprint"], story=ctx["story"], round=ctx["number"], inventory=INVENTORY,
+                         prp=PRP_DOC.format(path=ctx["prp"]) if ctx["prp"] else "",
+                         prp_tasks=" (and each task of the PRP plan)" if ctx["prp"] else "",
                          rereview=REREVIEW if ctx["number"] > 1 else "")
 
 
@@ -642,6 +712,7 @@ def file_round(root: str, ctx: dict, reviewer: str, answer: Optional[dict], reas
     print(f"REVIEWER={reviewer if answer else 'none'}")
     print(f"NEW={len(answer['proposals']) if answer else 0}")
     print(f"OPEN={','.join(after['open'])}")
+    print(f"RECHECK={'yes' if after['recheck'] else 'no'}")
     if answer is None:
         print(f"REASON={plain(reason)}")
     print(f"REPORT={os.path.relpath(ctx['path'], root)}")

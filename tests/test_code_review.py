@@ -306,6 +306,26 @@ class CodeReviewRunTests(unittest.TestCase):
         out, _ = self.run_review(command="status", path=os.path.join(self.tmp, "empty"))
         self.assertEqual(json.loads(out.stdout), {"sprint": "03", "story": None, "reports": {"story-001": "NEEDS CHANGES"}, "verdict": "NEEDS CHANGES"})
 
+    def test_prp_plans_declared_by_planned_stories_travel_and_bad_ones_are_left_out(self):
+        os.makedirs(os.path.join(self.root, "docs", "sprints", "sprint-03", "plans"))
+        os.makedirs(os.path.join(self.root, ".claude", "PRPs", "plans"))
+        self.write(".claude/PRPs/plans/cards.plan.md", "# Plan: cards\n")
+        self.write("docs/sprints/sprint-03/plans/story-001-plan.md", "**PRP plan:** .claude/PRPs/plans/cards.plan.md\n")
+        self.write("docs/stories/story-001.md", "# Create cards\n\n**PRP plan:** `.claude/PRPs/plans/cards.plan.md`\n")
+        self.run_review(ans=answer())
+        self.assertIn(".claude/PRPs/plans/cards.plan.md", self.staged_files())
+        with open(self.log + ".prompt", encoding="utf-8") as fh:
+            self.assertIn("- .claude/PRPs/plans/ — the PRP implementation plans", fh.read())
+        # An unusable line never stops the review: the PRP is simply not sent.
+        for bad in ("../outside.plan.md", "docs/stories/story-002.md", ".claude/PRPs/plans/missing.plan.md"):
+            with self.subTest(bad):
+                self.write("docs/stories/story-001.md", f"# Create cards\n\n**PRP plan:** {bad}\n")
+                out, _ = self.run_review(ans=answer())
+                self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+                self.assertFalse([p for p in self.staged_files() if p.startswith(".claude")])
+                with open(self.log + ".prompt", encoding="utf-8") as fh:
+                    self.assertNotIn("PRP", fh.read())
+
     # ── One story at a time ──
 
     def test_the_current_story_file_scopes_the_review_to_that_story(self):
