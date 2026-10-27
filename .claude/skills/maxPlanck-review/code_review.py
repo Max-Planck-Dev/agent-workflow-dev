@@ -82,6 +82,15 @@ SECRET_NAMES = (".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "*.jks", "
                 "*.tfstate", "*.tfstate.*", "*.tfvars", ".npmrc", ".netrc", ".pypirc", ".htpasswd",
                 "id_rsa*", "id_ed25519*", "id_ecdsa*", "*credentials*", "*secret*", "*.secrets",
                 "*.sqlite", "*.sqlite3", "*.db")
+# Name patterns that also match ordinary code (secret-input.tsx, credentials-form.vue):
+# for source files they say what the code is about, not that it holds a credential.
+BROAD_SECRET_NAMES = ("*credentials*", "*secret*")
+SOURCE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue", ".svelte", ".py", ".go", ".rb", ".java",
+                   ".kt", ".swift", ".cs", ".php", ".rs", ".css", ".scss", ".html", ".md")
+# Committed templates of a secret file: they document the variables, never their values.
+SECRET_TEMPLATE_SUFFIXES = (".example", ".sample", ".template", ".dist")
+# How many left-out files the brief names before it summarizes the rest.
+MAX_OMITTED_LISTED = 200
 
 EXIT_PRECONDITION = 2
 EXIT_FALLBACK = 3
@@ -166,7 +175,7 @@ Everything you need is in this directory:
 {components}
 
 Review these files only; do not look for the rest of the project.
-
+{omitted}
 {focus}For each story you review, check:
 1. It follows the architecture doc's folder structure, data models and API contracts.
 2. It implements the story's acceptance criteria — and the tasks of its plan{prp_tasks}, when docs/sprints/sprint-{sprint}/plans/ has one.
@@ -180,6 +189,11 @@ Severity means impact: "critical" the story does not work, violates the architec
 Security issues (XSS, injection, secrets, auth) belong to a separate security review: put them under flagged_for_security with a location and a one-line concern, not among the findings.
 
 A story with no implementation yet goes under not_reviewed with the reason. An empty findings list is a valid review of a story whose code is sound. This is sprint {sprint}.
+"""
+
+OMITTED = """
+These files exist in the project but were not copied here — their names say what they are, never their content: credentials stay on the machine, and binaries, lock files and other large files are not reviewable. Code that imports or reads one of them is not referring to a missing file: never report one as missing, and do not judge what it contains.
+{files}
 """
 
 PRP_DOC = """- .claude/PRPs/plans/ — the PRP implementation plans some story plans map onto (the story's **PRP plan:** line names it); code should implement those tasks too
@@ -355,7 +369,11 @@ def staged_name(root: str, index: int, cid: str, path: str) -> str:
 
 def is_secret_name(name: str) -> bool:
     lowered = name.lower()
-    return any(fnmatch.fnmatch(lowered, pattern) for pattern in SECRET_NAMES)
+    if lowered.endswith(SECRET_TEMPLATE_SUFFIXES):
+        return False
+    is_source = lowered.endswith(SOURCE_SUFFIXES)
+    return any(fnmatch.fnmatch(lowered, pattern) for pattern in SECRET_NAMES
+               if not (is_source and pattern in BROAD_SECRET_NAMES))
 
 
 def git_visible(base: str) -> Optional[set]:
@@ -402,8 +420,20 @@ def doc_link_ok(path: str, roots: List[str]) -> bool:
 
 def source_files(root: str, architecture: str) -> List[Tuple[str, str, str]]:
     """(absolute source, staged relative path, project-relative display path) of every reviewable file."""
+    return scan_sources(root, architecture)[0]
+
+
+def omitted_files(root: str, architecture: str) -> List[Tuple[str, str]]:
+    """(project-relative display path, reason) of every in-scope file that exists
+    but is not sent: names that may hold credentials, files over the size limit,
+    binaries. Dependency and build folders, links and what git ignores are not
+    part of the product's code and are not listed."""
+    return scan_sources(root, architecture)[1]
+
+
+def scan_sources(root: str, architecture: str) -> Tuple[List[Tuple[str, str, str]], List[Tuple[str, str]]]:
     excluded = [normalize(root, p) for p in excluded_paths(architecture)]
-    out, seen = [], set()
+    out, omitted, seen = [], [], set()
     for index, (cid, path) in enumerate(components(architecture), 1):
         base = normalize(root, path)
         for ex in excluded:
@@ -424,19 +454,31 @@ def source_files(root: str, architecture: str) -> List[Tuple[str, str, str]]:
             for name in sorted(files):
                 src = os.path.join(current, name)
                 rel = os.path.relpath(src, base)
-                if src in seen or os.path.islink(src) or is_secret_name(name):
+                if src in seen or os.path.islink(src):
                     continue
                 if visible is not None and os.path.normpath(rel) not in visible:
                     continue
-                try:
-                    if os.path.getsize(src) > MAX_FILE_BYTES or is_binary(src):
-                        continue
-                except OSError:
-                    continue
                 seen.add(src)
                 staged = rel if stage_base == "." else os.path.join(stage_base, rel)
-                out.append((src, staged, os.path.relpath(src, root) if not staged.startswith("external") else staged))
-    return out
+                display = os.path.relpath(src, root) if not staged.startswith("external") else staged
+                reason = leave_out_reason(src, name)
+                if reason:
+                    omitted.append((display, reason))
+                else:
+                    out.append((src, staged, display))
+    return out, omitted
+
+
+def leave_out_reason(path: str, name: str) -> str:
+    """Why a file of the product's code is not sent, or "" when it is."""
+    if is_secret_name(name):
+        return "may hold credentials"
+    try:
+        if os.path.getsize(path) > MAX_FILE_BYTES:
+            return f"larger than {MAX_FILE_BYTES // 1024} KB"
+    except OSError:
+        return "unreadable"
+    return "binary" if is_binary(path) else ""
 
 
 def sendable(path: str) -> bool:
@@ -795,7 +837,17 @@ def brief(root: str, ctx: dict) -> str:
     focus = FOCUS_ONE.format(story=ctx["story"]) if ctx["story"] else FOCUS_ALL
     has_prp = any(d.startswith(PRP_DIR + os.sep) for d in doc_files(root, ctx["sprint"], ctx["architecture"]))
     return PROMPT.format(sprint=ctx["sprint"], components=component_lines(root, ctx["architecture"]), focus=focus,
+                         omitted=omitted_lines(omitted_files(root, ctx["architecture"])),
                          prp=PRP_DOC if has_prp else "", prp_tasks=" (and of the PRP plan it maps onto)" if has_prp else "")
+
+
+def omitted_lines(omitted: List[Tuple[str, str]]) -> str:
+    if not omitted:
+        return ""
+    lines = [f"- {path} ({reason})" for path, reason in omitted[:MAX_OMITTED_LISTED]]
+    if len(omitted) > MAX_OMITTED_LISTED:
+        lines.append(f"- … and {len(omitted) - MAX_OMITTED_LISTED} more")
+    return OMITTED.format(files="\n".join(lines))
 
 
 def fallback(reason: str) -> int:

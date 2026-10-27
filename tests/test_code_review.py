@@ -414,6 +414,40 @@ class CodeReviewRunTests(unittest.TestCase):
                       "infra/terraform.tfstate", "infra/prod.tfvars", "backend/.npmrc", "backend/id_rsa"):
             self.assertNotIn(never, staged, never)
 
+    def test_source_files_named_like_secrets_are_still_reviewed(self):
+        self.write("frontend/src/secret-input.tsx", "export const SecretInput = () => null;\n")
+        self.write("frontend/src/credentials-form.tsx", "export const CredentialsForm = () => null;\n")
+        self.write("backend/.env.example", "API_KEY=\n")
+        self.write("backend/src/credentials.json", "{\"key\": \"hunter2\"}\n")
+        self.write("backend/.env", "API_KEY=hunter2\n")
+        self.run_review(ans=answer())
+        staged = self.staged_files()
+        for sent in ("frontend/src/secret-input.tsx", "frontend/src/credentials-form.tsx", "backend/.env.example"):
+            self.assertIn(sent, staged, sent)
+        for never in ("backend/src/credentials.json", "backend/.env"):
+            self.assertNotIn(never, staged, never)
+
+    def test_the_brief_names_the_files_left_out_so_they_are_not_reported_missing(self):
+        self.write("backend/.env", "API_KEY=hunter2\n")
+        self.write("frontend/package-lock.json", "x" * (cr.MAX_FILE_BYTES + 1))
+        self.run_review(ans=answer())
+        with open(self.log + ".prompt", encoding="utf-8") as fh:
+            prompt = fh.read()
+        out, _ = self.run_review(command="brief", path=os.path.join(self.tmp, "empty"))
+        for text in (prompt, out.stdout):
+            section = text[text.index("exist in the project but were not copied"):]
+            self.assertIn("backend/.env (may hold credentials)", section)
+            self.assertIn("frontend/package-lock.json (larger than", section)
+            self.assertIn("backend/src/blob.bin (binary)", section)
+            for never in ("node_modules", "other-client", "logs/"):
+                self.assertNotIn(never, section, never)
+
+    def test_nothing_left_out_means_no_omitted_section(self):
+        os.remove(os.path.join(self.root, "backend", "src", "blob.bin"))
+        self.run_review(ans=answer())
+        with open(self.log + ".prompt", encoding="utf-8") as fh:
+            self.assertNotIn("were not copied", fh.read())
+
     def test_git_ignored_files_never_leave_the_machine(self):
         if shutil.which("git") is None:
             self.skipTest("git not available")
