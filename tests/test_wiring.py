@@ -124,3 +124,41 @@ class AgentModelWiringTests(unittest.TestCase):
             ]
         self.assertTrue(any("apply-agent-models.sh" in c for c in commands), commands)
         self.assertTrue(os.access(os.path.join(ROOT, ".claude", "hooks", "apply-agent-models.sh"), os.X_OK))
+
+
+class DesignSystemWiringTests(unittest.TestCase):
+    """The kickoff asks the questions, the PRD records them, UX builds the doc."""
+
+    QUESTIONS = os.path.join(SKILLS_DIR, f"{PREFIX}-kickoff", "design-system-questions.md")
+
+    def read(self, *parts: str) -> str:
+        with open(os.path.join(ROOT, ".claude", *parts), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_record_table_lists_every_topic_in_order(self):
+        with open(self.QUESTIONS, encoding="utf-8") as fh:
+            text = fh.read()
+        table = text[text.index("## Design System\n"):]
+        topics = [t for t in re.findall(r"^\| ([^|]+?) \|", table, re.M) if t != "Topic" and not t.startswith("-")]
+        self.assertEqual(topics, [
+            "Layout", "Density", "Look & feel", "Primary color", "Theme", "Typography",
+            "Component library", "Buttons", "Tables", "Forms & saving", "Feedback", "Devices",
+        ])
+        self.assertEqual(len(re.findall(r"^## (\d+)\. ", text, re.M)), 12)
+
+    def test_both_askers_point_at_the_questions_file(self):
+        self.assertIn("design-system-questions.md", self.read("skills", f"{PREFIX}-kickoff", "SKILL.md"))
+        self.assertIn(
+            f".claude/skills/{PREFIX}-kickoff/design-system-questions.md",
+            self.read("skills", f"{PREFIX}-feeling-lucky", "SKILL.md"),
+        )
+
+    def test_the_design_system_doc_is_written_by_ux_and_read_downstream(self):
+        for parts in (
+            ("agents", f"{PREFIX}-ux-designer.md"),
+            ("skills", f"{PREFIX}-ux", "SKILL.md"),
+            ("agents", f"{PREFIX}-architect.md"),
+            ("agents", f"{PREFIX}-developer.md"),
+            ("skills", f"{PREFIX}-review", "code_review.py"),
+        ):
+            self.assertIn("docs/ux/design-system.md", self.read(*parts), "/".join(parts))

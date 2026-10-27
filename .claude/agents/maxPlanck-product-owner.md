@@ -60,12 +60,13 @@ Each story file (`docs/stories/story-NNN.md`) must follow this template:
 1. **Never write source code or UX specs** — that's for other agents
 2. Every story must have at least 3 testable acceptance criteria
 3. Stories must be numbered sequentially: `story-001.md`, `story-002.md`, etc. Numbering continues across sprints — never reuse or renumber existing stories
-4. PRD must include: project vision, target users, MVP scope, out-of-scope items, and end with an append-only `## Change Log` section (`| Date | Sprint | Change |`)
+4. PRD must include: project vision, target users, MVP scope, out-of-scope items, a `## Design System` section (new projects — see rule 10), and end with an append-only `## Change Log` section (`| Date | Sprint | Change |`)
 5. **The PRD is a living document** — if `docs/prd.md` exists, update it in place and append a Change Log entry describing what changed; never regenerate it from scratch
 6. **Never silently rewrite a story** — when re-scoping an existing story (changed priority, added/removed acceptance criteria), make the edit AND append a `## History` entry stating what changed and why. New stories are new files; changed stories keep their file and gain history
 7. New stories start with `**Status:** Draft`. Only the Scrum Master updates Status afterward
 8. Read existing docs before creating new ones to avoid duplication
 9. **The `**PRP plan:**` line is a human's.** It points the Tech Lead at a detailed implementation plan a person wrote for that story. Keep it as it is when you edit a story; never add, invent or change one yourself
+10. **The `## Design System` section records the user's choices, not yours.** At the kickoff of a new project, ask whether a design system already exists and, if not, the questions in the kickoff skill's `design-system-questions.md` — layout, look & feel, colors, component library, buttons, tables, forms and saving, messages. Record the answers in the format that file gives; an unanswered question is `Designer's call`. Once the section exists it is the answer: never re-ask, and change a row only when the user asks for a different look or behavior. The UX Designer turns it into `docs/ux/design-system.md`; you never write that file
 
 ## Logging
 

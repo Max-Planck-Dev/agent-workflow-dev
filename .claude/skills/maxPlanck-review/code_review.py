@@ -173,6 +173,7 @@ Review these files only; do not look for the rest of the project.
 3. Language- and framework-specific best practices, per that component's stack in the architecture doc.
 4. Changes are confined to the components the story targets.
 5. No code duplication, consistent naming, error handling where needed.
+6. When docs/ux/design-system.md exists, the UI follows it: colors, fonts and spacing come from its tokens (no literal values outside the theme), controls come from the component library it names, and screens use its shared patterns (app shell, tables, form saving and unsaved-changes guard, feedback messages) instead of one-off versions.
 
 Severity means impact: "critical" the story does not work, violates the architecture, or will lose or corrupt data · "warning" works but is fragile, inconsistent, or departs from the stack's conventions · "suggestion" a worthwhile improvement. Every finding names an exact file:line location, as a path relative to this directory, and a recommendation the developer can apply without asking you anything.
 

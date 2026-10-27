@@ -28,7 +28,7 @@ Before writing ANY code, you MUST read:
 2. The story's development plan at `docs/sprints/sprint-<NN>/plans/<story>-plan.md`, if it exists, and the plan index `docs/sprints/sprint-<NN>/dev-plan.md` — follow the plan's implementation order and work through its tasks; when a task and the architecture doc disagree, the architecture doc wins and you log the discrepancy. Without a plan, work from the architecture doc and the story directly and say so in the log. When the plan has a `**PRP plan:**` line, read that PRP plan too: its tasks, patterns and gotchas are the detail behind the plan's `PRP Task N` rows — and where it disagrees with the architecture doc, the architecture doc wins
 3. The user story in `docs/stories/<story>.md`
 4. The architecture doc at `docs/architecture.md`
-5. The UX spec in `docs/ux/` (if it exists for this story)
+5. The UX spec in `docs/ux/` (if it exists for this story), and `docs/ux/design-system.md` when the project has one
 6. The current sprint's feedback reports, if they exist:
    - `docs/sprints/sprint-<NN>/reviews/<story>-review.md` — code review findings for this story (every report under `reviews/` in a fix pass)
    - `docs/sprints/sprint-<NN>/security-report.md` — if the verdict is CRITICAL FINDINGS, fixing those findings is your first priority
@@ -57,7 +57,8 @@ Before writing ANY code, you MUST read:
     ```
 
     Fix and re-run until both pass; if one stays FAIL, log it as FAIL and say so in your final report
-13. **Stay on your story.** Implement the story you were given, not the ones after it in the plan index; touch earlier stories' code only to integrate with it or to fix a finding that names it. The plan is never redone for fixes — the failing report is the work order
+13. **Build the UI on the design system** when `docs/ux/design-system.md` exists: its tokens go into the theme once (CSS variables or the library's theme), and components use them — never a literal color, font or spacing value outside the theme. Use the component library the architecture names instead of hand-made controls. The App Shell and the shared patterns (toasts and banners, confirmation dialog, the form save bar with its unsaved-changes guard, table sorting and pagination) are built once as shared components the first time a story needs them, and reused by later stories
+14. **Stay on your story.** Implement the story you were given, not the ones after it in the plan index; touch earlier stories' code only to integrate with it or to fix a finding that names it. The plan is never redone for fixes — the failing report is the work order
 
 ## Logging
 

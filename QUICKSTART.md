@@ -15,10 +15,12 @@ Existing features do not get retroactive stories — story numbering starts with
 ## Starting a New Project
 
 1. Run `/maxPlanck-kickoff` — describe your project idea
-   → Product Owner creates PRD and user stories in `docs/`
+   → Product Owner asks whether you already have a design system; if not, it walks you through
+     the choices (layout, look & feel, colors, component library, tables, form saving, messages)
+   → Product Owner creates PRD (with a `## Design System` section) and user stories in `docs/`
 
-2. Run `/maxPlanck-ux` — UX Designer reads stories and creates wireframes
-   → Wireframes and component specs appear in `docs/ux/`
+2. Run `/maxPlanck-ux` — UX Designer builds the design system, then reads stories and creates wireframes
+   → `docs/ux/design-system.md` (tokens, app shell, patterns), wireframes and component specs appear in `docs/ux/`
 
 3. Run `/maxPlanck-design` — Architect reads everything and designs the system
    → Architecture doc with data models, APIs, folder structure in `docs/architecture.md`

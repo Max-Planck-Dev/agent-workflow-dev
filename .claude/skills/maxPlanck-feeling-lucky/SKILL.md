@@ -36,6 +36,16 @@ This skill deliberately has no `context: fork` / `agent:` binding: it is an **or
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Full pipeline started (sprint <NN>): <goal in one line>" >> logs/agent-workflow.log
 ```
 
+## Design System Questions (before the kickoff)
+
+The kickoff of a new project settles its design system with the user, and the phase skills run in forked contexts that cannot stop to ask. So the questions are asked **here**, once, before invoking `maxPlanck-kickoff` — the only user input of the run besides the project idea.
+
+Skip this when `docs/prd.md` already exists (with that section the answer is recorded; without it the project predates design systems and has none), or when the product clearly has no user interface (a pure API, CLI or library — pass `Design System: none — no user interface` to the kickoff). Otherwise read `.claude/skills/maxPlanck-kickoff/design-system-questions.md` and ask its questions with the AskUserQuestion tool, in the user's language:
+
+- First question 1 alone (an existing design system or brand guide?). With one, ask where it is, then only the questions it leaves open.
+- Then rounds of up to 4 questions, in the file's order, every option with its description; layout options carry their ASCII sketch as a `preview`. A question with more options than fit offers the best four — the free answer covers the rest — and always lets the user leave it to the designer.
+- Pass the answers to `maxPlanck-kickoff` in its arguments, after the idea, as the `## Design System` section that file defines — the `**Source:**` line (`new — kickoff questions (<date>)`, or `existing — <reference>` when the user named one) and the table — so the Product Owner records them without asking again.
+
 ## Default Pipeline Order
 
 ```
@@ -78,7 +88,7 @@ After each phase, read the relevant output to decide the next step. **Freshness 
 | Completed Phase | Read | Route |
 |----------------|------|-------|
 | `maxPlanck-kickoff` | `docs/prd.md`, `docs/stories/` | If PRD has a sprint-`<NN>` Change Log entry and 3+ stories exist → `maxPlanck-ux`. Otherwise re-run `maxPlanck-kickoff`. |
-| `maxPlanck-ux` | `docs/ux/` | If design files (or this-sprint revisions) exist for P0/P1 stories → `maxPlanck-design`. Otherwise re-run `maxPlanck-ux`. |
+| `maxPlanck-ux` | `docs/ux/`, the `**Source:**` line of the PRD's `## Design System` | If design files (or this-sprint revisions) exist for P0/P1 stories, and `docs/ux/design-system.md` exists when the PRD has that section with any source other than `none` → `maxPlanck-design`. Otherwise re-run `maxPlanck-ux`. |
 | `maxPlanck-design` | `docs/architecture.md`, `docs/sprints/sprint-<NN>/design-review.md` (if it exists) | If the doc lacks models + API endpoints or a sprint-`<NN>` Change Log entry → re-run `maxPlanck-design`. If a design review report exists and any of its proposals is still open (see the check below) → re-run `maxPlanck-design`, naming the open proposal IDs. Otherwise, if the design review report has fewer than 2 rounds (`grep -c '^## Round '`; no file = 0) → `maxPlanck-design-review`; with 2 rounds → the story loop (`Reason: design-review cap (2 rounds) — round-2 proposals ruled by the Architect`). |
 | `maxPlanck-design-review` | `docs/sprints/sprint-<NN>/design-review.md` (the `**Verdict:**`, `**Latest round:**` and `**Reviewer:**` lines) | If **APPROVED** → the story loop (first `maxPlanck-plan`). If **CHANGES PROPOSED** → `maxPlanck-design`, telling the Architect to evaluate the open proposals in that report (say so in the reason if the latest round was unavailable). If **UNAVAILABLE**, or this run filed no round (see the check below) → the review did not happen: log `Phase design-review skipped \| Reason: UNAVAILABLE — <reason from the report>` *instead of* a routing line, record the verdict in `pipeline-state.json`, append `"design-review: UNAVAILABLE (<reason>)"` to `unresolved` (the design went to development unreviewed; suggested next command `/maxPlanck-design-review`), and go to the story loop. |
 

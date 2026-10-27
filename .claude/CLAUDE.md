@@ -51,6 +51,7 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 - `docs/architecture.md` — same Change Log rule; once a design review has run, it also carries an append-only `## Design Review Log` (one row per proposal, written by the Architect)
 - `docs/stories/story-NNN.md` — sequential numbering continues forever; changes append a `## History` entry, never silently rewrite
 - `docs/ux/story-NNN-design.md` — redesigns append a `## Revision <date>` section
+- `docs/ux/design-system.md` — the project's design system (visual direction, app shell, tokens, component library, UX patterns), written by the UX Designer from the PRD's `## Design System` section before any story design; changes append a `## Revision <date>` section
 - `docs/devops/deployment.md` and each component's CI workflow — updated incrementally, never regenerated (same rule as the infrastructure code)
 
 **Sprint-scoped artifacts** (point-in-time, one folder per cycle, prior folders never modified):
@@ -166,8 +167,8 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 ## Definition of Done Per Phase
 
 - **Adopt** (brownfield only): `docs/prd.md` as-built with a Current Capabilities inventory and adoption Change Log entry, `docs/architecture.md` as-built with verified build/run commands and a Known Deviations & Debt section, `docs/sprints/.current-sprint` at `01`, adoption-baseline sprint summary
-- **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct
-- **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns)
+- **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint and a `## Design System` section (the user's answers to `design-system-questions.md` in the kickoff skill's directory, an existing reference, or `none — no user interface`; asked once, never on adoption) + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct
+- **UX:** `docs/ux/design-system.md` when the PRD has a design system, then design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes inside its app shell, component specs, interaction patterns from its patterns)
 - **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint; every open design review proposal ruled on in `## Design Review Log`
 - **Design Review:** `docs/sprints/sprint-NN/design-review.md` with a `## Round` section per run naming its reviewer (OpenAI Codex, or Claude as fallback with the reason), proposals under stable `DR-NN-n` IDs, an Open Proposals list, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict
 - **Plan (per story):** `docs/sprints/sprint-NN/dev-plan.md` with a `## Story Order` covering every story in scope, `.current-story` naming the story planned, and `docs/sprints/sprint-NN/plans/story-NNN-plan.md` with an implementation order by component dependency, a `## Tasks` table mapping every acceptance criterion of that story to a task with its files (when the story names a PRP plan: to that PRP's tasks, referenced by number, not transcribed), per-component verification commands (`Check` and `Test (focused)`), and risks/open questions; no code written, no other story planned

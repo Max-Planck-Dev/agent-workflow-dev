@@ -69,8 +69,8 @@ Thirteen specialized AI agents — Product Owner, UX Designer, Architect, Design
 
 | Command | What it does |
 |---------|--------------|
-| `/maxPlanck-kickoff` | Product Owner writes PRD + stories from your idea |
-| `/maxPlanck-ux` | UX Designer creates wireframes and component specs |
+| `/maxPlanck-kickoff` | Product Owner writes PRD + stories from your idea; on a new project it first asks for your design system, or walks you through creating one (layout, look & feel, colors, component library, UX patterns) |
+| `/maxPlanck-ux` | UX Designer writes the design system (`docs/ux/design-system.md`: tokens, app shell, patterns), then wireframes and component specs that use it |
 | `/maxPlanck-design` | Architect designs the technical system |
 | `/maxPlanck-design-review` | A second reviewer checks the design — OpenAI Codex if installed, Claude otherwise — and the Architect accepts or rejects each proposal |
 | `/maxPlanck-plan [story-NNN]` | Tech Lead plans one story — tasks, files to touch, verification per component — (and the sprint's story order, the first time) and rules on plan review proposals |
