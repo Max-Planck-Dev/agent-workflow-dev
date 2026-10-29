@@ -6,10 +6,12 @@ the change is deliberate, never a side effect.
 """
 
 import ast
+import json
 import os
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 from helpers import ROOT
@@ -29,6 +31,7 @@ EXPECTED_SKILLS = {
     "maxPlanck-review", "maxPlanck-audit", "maxPlanck-infra", "maxPlanck-test",
     "maxPlanck-sprint", "maxPlanck-feeling-lucky", "maxPlanck-adopt",
     "maxPlanck-change", "maxPlanck-report",
+    "maxPlanck-proposal",  # repo-only: never installed, never in the plugin
 }
 
 # Rule 5: working artifacts never land in the repository.
@@ -45,6 +48,10 @@ def repo_files():
         dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
         for name in files:
             yield os.path.relpath(os.path.join(base, name), ROOT)
+
+
+def repo_only_skills():
+    return {d for d in os.listdir(SKILLS_DIR) if os.path.isfile(os.path.join(SKILLS_DIR, d, ".repo-only"))}
 
 
 def read(path):
@@ -81,6 +88,29 @@ class PipelineIsCompleteTests(unittest.TestCase):
         manifest = read(os.path.join(".claude-plugin", "plugin.json"))
         registered = set(re.findall(r"agents/(maxPlanck-[a-z-]+)\.md", manifest))
         self.assertEqual(registered, EXPECTED_AGENTS)
+
+    def test_plugin_lists_every_project_skill_and_no_repo_only_one(self):
+        manifest = read(os.path.join(".claude-plugin", "plugin.json"))
+        json.loads(manifest)  # the manifest must stay valid JSON
+        listed = set(re.findall(r"skills/(maxPlanck-[a-z-]+)\"", manifest))
+        self.assertEqual(listed, EXPECTED_SKILLS - repo_only_skills())
+
+
+class RepoOnlySkillsTests(unittest.TestCase):
+    """A skill with a .repo-only marker improves this repository and is never installed."""
+
+    def test_setup_does_not_install_repo_only_skills(self):
+        if shutil.which("git") is None or shutil.which("bash") is None:
+            self.skipTest("git and bash are needed to run setup.sh")
+        target = tempfile.mkdtemp(prefix="maxplanck-install-")
+        try:
+            out = subprocess.run(["bash", os.path.join(ROOT, "setup.sh"), target],
+                                 capture_output=True, text=True, timeout=120, check=False)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            installed = set(os.listdir(os.path.join(target, ".claude", "skills")))
+            self.assertEqual(installed, EXPECTED_SKILLS - repo_only_skills())
+        finally:
+            shutil.rmtree(target, ignore_errors=True)
 
 
 class FeelingLuckyIsUnattendedTests(unittest.TestCase):

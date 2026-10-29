@@ -24,9 +24,10 @@ that overrides your defaults. `AGENTS.md` at the root points here.
    reviewer, an analytics endpoint) unless the maintainer opts that project in
    explicitly. Opt-out files are not acceptable; the default must be "nothing leaves".
 
-4. **One change per pull request, against `master`.** No stacked PRs and no PRs that
-   bundle several features. If a change needs another change first, land the first one
-   and come back. A PR a reviewer cannot read in one sitting is too big.
+4. **One change per pull request, against `staging`.** The maintainer merges `staging`
+   into `master`. No stacked PRs and no PRs that bundle several features. If a change
+   needs another change first, land the first one and come back. A PR a reviewer cannot
+   read in one sitting is too big.
 
 5. **No working artifacts in the repository.** Plans, PRPs, review transcripts, model
    conversations, scratch copies of scripts and "reference only" dumps do not get
@@ -53,6 +54,9 @@ that overrides your defaults. `AGENTS.md` at the root points here.
 ## Before you open a PR
 
 - Read `.claude/CLAUDE.md` in full. It is the specification of the workflow.
+- Use `/maxPlanck-proposal "<idea>"` (or `--from-pr <N>` for an existing PR) in a
+  checkout of this repository. It assesses the idea against these rules, implements the
+  compliant shape with tests, and opens the PR. It is the path of least resistance.
 - If the change adds a phase, an agent, a helper script or a new dependency on an
   external tool, stop and open an issue first. Do not build it speculatively.
 - Run the test suite. Run `setup.sh` into a throwaway project and confirm the install

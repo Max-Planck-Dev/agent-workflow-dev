@@ -11,7 +11,9 @@ The rules that most often get broken, in short:
 - `/maxPlanck-feeling-lucky` must never stop to ask the user anything. No prompts,
   no `AskUserQuestion`, no mid-run decisions. Inputs go in the command arguments.
 - Nothing in a project may be sent to a third-party service by default. Opt-in only.
-- One change per PR, against `master`. No stacked PRs, no bundled features.
+- One change per PR, against `staging`. No stacked PRs, no bundled features.
+- To contribute a change, run `/maxPlanck-proposal "<idea>"` or `--from-pr <N>`: it
+  produces a compliant PR. Do not hand-roll the process.
 - Never commit plans, PRPs, transcripts or scratch files. Never duplicate helper code
   between skills; shared code goes in `bin/`.
 - Commit messages and PR descriptions describe the change only. No AI attribution,

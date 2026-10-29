@@ -9,7 +9,21 @@
   "homepage": "https://github.com/Max-Planck-Dev/agent-workflow-dev",
   "repository": "https://github.com/Max-Planck-Dev/agent-workflow-dev",
   "keywords": ["agile", "workflow", "multi-agent", "scrum", "release-reports", "dashboard", "herdr"],
-  "skills": ["./.claude/skills"],
+  "skills": [
+    "./.claude/skills/maxPlanck-adopt",
+    "./.claude/skills/maxPlanck-audit",
+    "./.claude/skills/maxPlanck-change",
+    "./.claude/skills/maxPlanck-design",
+    "./.claude/skills/maxPlanck-develop",
+    "./.claude/skills/maxPlanck-feeling-lucky",
+    "./.claude/skills/maxPlanck-infra",
+    "./.claude/skills/maxPlanck-kickoff",
+    "./.claude/skills/maxPlanck-report",
+    "./.claude/skills/maxPlanck-review",
+    "./.claude/skills/maxPlanck-sprint",
+    "./.claude/skills/maxPlanck-test",
+    "./.claude/skills/maxPlanck-ux"
+  ],
   "agents": [
     "./.claude/agents/maxPlanck-product-owner.md",
     "./.claude/agents/maxPlanck-ux-designer.md",
@@ -22,5 +36,7 @@
     "./.claude/agents/maxPlanck-scrum-master.md",
     "./.claude/agents/maxPlanck-release-manager.md"
   ],
-  "hooks": ["./.claude-plugin/hooks.json"]
+  "hooks": [
+    "./.claude-plugin/hooks.json"
+  ]
 }

@@ -82,6 +82,7 @@ Ten specialized AI agents — Product Owner, UX Designer, Architect, Developer, 
 | `/maxPlanck-adopt` | Adopts an existing codebase — reverse-engineers the founding docs as-built |
 | `/maxPlanck-change` | Runs a change request through the team — docs update first, then implement → review → test |
 | `/maxPlanck-report` | Release Manager generates the 4-report release pack: internal report, client report, blog-style release note, QA checklist |
+| `/maxPlanck-proposal` | This repo only (never installed): turns an idea or an existing PR into a PR that complies with `CONTRIBUTING.md` |
 
 ## Tech Stack (Built by Agents)
 
