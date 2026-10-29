@@ -29,7 +29,7 @@ This skill deliberately has no `context: fork` / `agent:` binding: it is an **or
 }
 ```
 
-`profile` and `features` are what the helper printed; `phase_runs` and `verdicts` get a key for every phase in `ORDER`. When resuming, use the recorded `profile` and `features`, never the current config. A state file written before profiles existed has neither key: treat it as `default` with every switch off. Update the file after every phase (increment the run count, record verdicts, append unresolved failures). If a pipeline is interrupted and re-run in the same sprint, resume from this file instead of starting at zero.
+`profile` and `features` are what the helper printed; `phase_runs` and `verdicts` get a key for every phase in `ORDER`. With the `story-loop` switch, `stories` gets one entry per story as the loop reaches it — `"story-003": { "phase_runs": { "plan": 0, "plan-review": 0, "develop": 0, "review": 0 }, "verdicts": { "plan-review": null, "review": null } }` — and `current_story` names the one in progress; the sprint-level `develop` / `review` counters then count only the fix passes after the loop. When resuming, use the recorded `profile` and `features`, never the current config. A state file written before profiles existed has neither key: treat it as `default` with every switch off. Update the file after every phase (increment the run count, record verdicts, append unresolved failures). If a pipeline is interrupted and re-run in the same sprint, resume from this file instead of starting at zero.
 
 4. Log the pipeline start, **with the goal of this run in one line** (the project idea or feature from the command arguments or conversation; for a sprint continuing existing work, the sprint's focus). The dashboard shows this line as the run's title. Right after it, log the profile and the order, copied from the helper's `PROFILE=` and `ORDER=` lines (the dashboard builds its phase list from this line):
 
@@ -47,6 +47,8 @@ maxPlanck-kickoff → maxPlanck-ux → maxPlanck-design → maxPlanck-develop �
 ```
 
 Other profiles insert optional phases into it (each has its own routing rules, marked with the switch that enables them). **"Next phase" below always means the next entry of this run's order.** A phase whose switch is off is not in the order: it is never invoked and never logged as skipped. A switch with no routing rule in this file yet is read and recorded, and nothing else.
+
+With the `story-loop` switch the helper's `PER_STORY=` line names the phases that run once per story (`plan plan-review develop review`, minus `plan-review` when that switch is off): see The Story Loop below, which replaces those phases' rows while the loop runs.
 
 ## Phase Routing Rules
 
@@ -67,9 +69,32 @@ After each phase, read the relevant output to decide the next step. **Freshness 
 | `maxPlanck-test` | `docs/sprints/sprint-<NN>/test-plans/` | If **all tests pass** → `maxPlanck-sprint`. If **tests fail** → `maxPlanck-develop`, telling it which test reports to fix from. |
 | `maxPlanck-sprint` | `docs/sprints/sprint-<NN>/sprint-summary.md` | Pipeline complete. |
 
+## The Story Loop *(story-loop)*
+
+Stories are built one at a time: each goes through the `PER_STORY` phases before the next one is planned, so every plan is written against the code the earlier stories actually left, and every review is one story's worth.
+
+**Entering the loop.** Invoke `maxPlanck-plan next`: the Tech Lead writes the plan index if it does not exist and plans the first story. Then read `## Story Order` in `docs/sprints/sprint-<NN>/dev-plan.md` — that ordered list of `story-NNN` IDs is the loop. Record it in `pipeline-state.json` (`stories`, one entry each, in order) and announce it — the dashboard reads this line to show `story k/n`:
+
+```bash
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Stories in scope (sprint <NN>): story-001, story-002, story-003" >> logs/agent-workflow.log
+```
+
+If the index has no `## Story Order` or it is empty, re-run `maxPlanck-plan next` (counts as a plan run of the first story). On resume, skip the stories whose `verdicts.review` is already `APPROVED` (or whose review was force-advanced) and continue with the first that is not.
+
+Then, for each story `<S>` in that order, set `current_story` and route by this table. **Every invocation names the story** (`maxPlanck-plan <S>`, `maxPlanck-plan-review <S>`, `maxPlanck-develop <S>`, `maxPlanck-review <S>`) — never rely on `.current-story` from the orchestrator, it is for manual runs. Routing lines carry the story on both sides: `Phase review (<S>) finished → routing to plan (<S+1>) | Reason: APPROVED — next story`; a retry is `Phase develop (<S>, re-run) finished → routing to review (<S>)`.
+
+| Completed Phase | Read | Route |
+|----------------|------|-------|
+| `maxPlanck-plan <S>` | `docs/sprints/sprint-<NN>/plans/<S>-plan.md`, `.current-story`; *(plan-review)* `open --kind plan --story <S>` and `status --kind plan --story <S>` | If the plan lacks an `## Implementation Order` or a `## Tasks` table, or `.current-story` does not hold `<S>` → re-run `maxPlanck-plan <S>`. **`plan-review=off`:** → `maxPlanck-develop <S>`. **`plan-review=on`:** if `open` prints any ID → re-run `maxPlanck-plan <S>`, naming them (a ruling-only run is not counted against the phase); else if `status` shows `rounds` 0 or `recheck` true → `maxPlanck-plan-review <S>`; else → `maxPlanck-develop <S>` (`Reason: proposals ruled, no CRITICAL/HIGH in the round — no re-review`, or `Reason: plan-review cap reached (2 rounds)`). |
+| `maxPlanck-plan-review <S>` | the `**Verdict:**` line of `docs/sprints/sprint-<NN>/plan-reviews/<S>-plan-review.md`; `status` before and after | If **APPROVED** → `maxPlanck-develop <S>`. If **CHANGES PROPOSED** → `maxPlanck-plan <S>`, telling the Tech Lead to rule on the open proposals. If **UNAVAILABLE**, or `rounds` did not grow by one → log `Phase plan-review (<S>) skipped \| Reason: UNAVAILABLE — <reason>` instead of a routing line, append `"plan-review (<S>): UNAVAILABLE (<reason>)"` to `unresolved`, and go to `maxPlanck-develop <S>`. |
+| `maxPlanck-develop <S>` | Component paths per the `## Components` table; the plan's `**Component(s):**` line | Actually run each changed component's own build command from its own directory. Every component the plan names builds → `maxPlanck-review <S>`. Otherwise re-run `maxPlanck-develop <S>` (never `maxPlanck-plan`). |
+| `maxPlanck-review <S>` | `docs/sprints/sprint-<NN>/reviews/<S>-review.md` (its `**Verdict:**` line) | If **APPROVED** and `<S>` is not the last entry of `## Story Order` → `maxPlanck-plan <S+1>` (`Reason: APPROVED — next story`). If **APPROVED** and `<S>` is the last → the next phase after the loop (`Reason: APPROVED — last story`). If **NEEDS CHANGES** → `maxPlanck-develop <S>`, telling it which review file to address. If no report was written for `<S>` → `maxPlanck-develop <S>`. |
+
+**Sprint-level fix passes.** When the audit or QA sends the work back, the whole sprint is in play, not one story: invoke `maxPlanck-develop all` (the Developer works from the reports, builds nothing new), then `maxPlanck-review all` (every story with code is re-reviewed; APPROVED → the phase that sent the work back resumes from the audit; NEEDS CHANGES → `maxPlanck-develop all`). These runs count in the sprint-level `phase_runs.develop` / `phase_runs.review`, carry no story in their routing lines, and never go through `maxPlanck-plan`. The `maxPlanck-audit` and `maxPlanck-test` rows above route to `maxPlanck-develop all` while this switch is on.
+
 ## Loop Protection
 
-`phase_runs` in `pipeline-state.json` is the counter — persisted, not in-memory. If any phase reaches **3 runs**, force-advance to the next phase in the default order, log a warning, and append the unresolved failure (e.g. `"review: NEEDS CHANGES after 3 attempts"`) to `unresolved`. A force-advance is a recorded failure, not a success. Log it as:
+`phase_runs` in `pipeline-state.json` is the counter — persisted, not in-memory; inside the story loop it is the story's own `stories.<S>.phase_runs`. If any phase reaches **3 runs**, force-advance to the next phase in the default order, log a warning, and append the unresolved failure (e.g. `"review: NEEDS CHANGES after 3 attempts"`, or `"review (<S>): NEEDS CHANGES after 3 attempts"` in the loop) to `unresolved`. A force-advance is a recorded failure, not a success. A run in which the Architect or the Tech Lead only rules on review proposals is not counted against its phase. In the story loop a force-advanced review goes to the next story's plan (or the next phase after the last story): one story's failure does not stop the sprint, it is reported. Log it as:
 
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Phase <x> force-advanced → routing to <y> | Reason: 3 runs, <what is still failing>" >> logs/agent-workflow.log

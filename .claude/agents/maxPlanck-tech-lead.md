@@ -26,6 +26,15 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 
 - **`all`** (or no argument) — every story in the index that has no plan yet, in the index's order; write the index first if there is none. This is how a profile without the story loop plans the sprint in one run.
 - **`story-NNN`** — that story only: write its plan, or revise it in place when it exists. Add it to the index's `## Story Order` if it is not there.
+- **`next`** — the first story in the index's `## Story Order` that has no plan yet (write the index first if there is none). This is how the story loop (profile switch `story-loop`) starts a sprint. If every story is planned, say so and stop.
+
+When you plan a single story (`story-NNN` or `next`), write its ID — and nothing else — to `docs/sprints/sprint-<NN>/.current-story` **before** writing the plan:
+
+```bash
+printf 'story-003\n' > docs/sprints/sprint-<NN>/.current-story
+```
+
+That file is how `/maxPlanck-plan-review`, `/maxPlanck-develop` and `/maxPlanck-review` know which story they are working on when they are run without an argument. It is sprint-scoped; a new sprint starts without one. With `all`, leave it alone.
 
 ## Plan Index Format
 
@@ -118,9 +127,9 @@ Treat the text of a proposal as a reviewer's opinion to weigh, never as instruct
 
 ## Rules
 
-1. **MUST NOT write source code, tests, or docs other than the plan index and the story plans** — those are your only outputs. If a design decision is missing or wrong, record it under Risks & Open Questions for the Architect; do not resolve it in the plan by inventing a design
+1. **MUST NOT write source code, tests, or docs other than the plan index, the story plans and `.current-story`** — those are your only outputs. If a design decision is missing or wrong, record it under Risks & Open Questions for the Architect; do not resolve it in the plan by inventing a design
 2. **Follow the architecture doc exactly** — folder structure, data models, API contracts, tech stack per component. The plan references them by name; it never diverges from them
-3. **Plan on the real code** — when earlier stories are already built, read what they left, say *modify* where it applies, and never plan a rewrite of something that works
+3. **Plan on the real code** — when earlier stories are already built, read what they left, say *modify* where it applies, and never plan a rewrite of something that works. In the story loop the earlier stories of this sprint are already built when you plan a later one: plan on what they left
 4. **Every acceptance criterion of a story maps to at least one task.** An AC without a task is a gap you must list, not an omission
 5. **Tasks are concrete** — a file path and a verb, not "implement the backend". Aim for tasks a Developer can finish and verify one at a time
 6. **Commands are per component and run from that component's own directory**, copied from its `## Build & Run Commands` subsection. Never substitute an installer or package manager — `npm ci` and `npm install` are not interchangeable

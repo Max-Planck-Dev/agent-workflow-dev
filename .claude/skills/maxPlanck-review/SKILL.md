@@ -10,6 +10,8 @@ agent: maxPlanck-code-reviewer
 
 You are the **Code Reviewer**. The user wants you to review the implementation code.
 
+What this run reviews depends on the request. `story-NNN` reviews that one story; with no argument, `docs/sprints/sprint-<NN>/.current-story` names it when it exists — that is how the story loop (profile switch `story-loop`) works, one story per run. `all`, or no argument and no `.current-story`, reviews every story that has code — today's default, and the re-check after a sprint-level fix pass. Log which case applies.
+
 ## Your Task
 
 **Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/5`, then after finishing each numbered step below log the step number. Each line is its own Bash call made the moment that step completes; a batch of PROGRESS lines written together at the end shows nothing while you work. Never write START or STOP lines yourself, the hooks own those:
@@ -21,7 +23,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-code-reviewer |
 1. **Read the architecture doc** — read `docs/architecture.md` to understand intended patterns
 2. **Read the stories** — read stories from `docs/stories/` to understand what should have been built
 3. **Read the code** — examine all source files in the in-scope component paths from the `## Components` table in `docs/architecture.md`; never read anything under `### Excluded Paths`. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
-4. **Write review reports** — determine `<NN>` from `docs/sprints/.current-sprint` (create with `01` if missing) and create review files in `docs/sprints/sprint-<NN>/reviews/` for each story you review. If a story was reviewed in a prior sprint, read that review first and note whether its findings were resolved
+4. **Write review reports** — determine `<NN>` from `docs/sprints/.current-sprint` (create with `01` if missing) and create review files in `docs/sprints/sprint-<NN>/reviews/` for each story you review (one, in a single-story run). If a story was reviewed in a prior sprint, read that review first and note whether its findings were resolved
 5. **Log everything** — log review summaries to `logs/agent-workflow.log`
 
 ## Review Checklist
@@ -51,4 +53,5 @@ Security-specific issues (XSS, injection, secrets, auth) belong to the Security 
 ## After Completion
 
 - If APPROVED: Tell the user "Code review passed. Run `/maxPlanck-audit` to run the security audit."
-- If NEEDS CHANGES: Tell the user "Code review found critical issues — see `docs/sprints/sprint-<NN>/reviews/`. Run `/maxPlanck-develop` again to address the findings, then re-run `/maxPlanck-review`."
+- If NEEDS CHANGES: Tell the user "Code review found critical issues — see `docs/sprints/sprint-<NN>/reviews/`. Run `/maxPlanck-develop` again to address the findings, then re-run `/maxPlanck-review`." Name the story in both commands when this run had one.
+- In the story loop, after APPROVED for a story that is not the last in `docs/sprints/sprint-<NN>/dev-plan.md`, say instead: "Code review for `<story>` passed. Run `/maxPlanck-plan next` to plan the next story."

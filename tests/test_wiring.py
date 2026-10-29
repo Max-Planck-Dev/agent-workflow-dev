@@ -201,3 +201,35 @@ class PlanReviewWiringTests(unittest.TestCase):
         for rel in (".claude/skills/maxPlanck-feeling-lucky/SKILL.md", ".claude/skills/maxPlanck-change/SKILL.md"):
             self.assertIn("plan-review", self.read(rel), rel)
             self.assertIn("recheck", self.read(rel).lower(), rel)
+
+
+class StoryLoopWiringTests(unittest.TestCase):
+    """The story-loop switch: one story per run, named explicitly by the orchestrators."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_phase_skills_take_a_story_or_all(self):
+        for rel in (".claude/skills/maxPlanck-develop/SKILL.md", ".claude/skills/maxPlanck-review/SKILL.md"):
+            text = self.read(rel)
+            self.assertIn(".current-story", text, rel)
+            self.assertIn("`all`", text, rel)
+        self.assertIn("`next`", self.read(".claude/skills/maxPlanck-plan/SKILL.md"))
+        self.assertIn(".current-story", self.read(".claude/agents/maxPlanck-tech-lead.md"))
+
+    def test_orchestrator_announces_stories_and_names_them(self):
+        text = self.read(".claude/skills/maxPlanck-feeling-lucky/SKILL.md")
+        self.assertIn("Stories in scope (sprint <NN>)", text)
+        self.assertIn("maxPlanck-plan next", text)
+        self.assertIn("routing to plan (<S+1>)", text)
+        self.assertIn("maxPlanck-develop all", text)
+        self.assertIn("story-loop", self.read(".claude/skills/maxPlanck-change/SKILL.md"))
+
+    def test_switch_requires_plan_and_the_helper_lists_the_loop_phases(self):
+        self.assertEqual(wc.REQUIRES["story-loop"], ("plan",))
+        on = dict(wc.PROFILES["nacho"]["features"])
+        self.assertEqual(wc.order(on)[2], ["plan", "plan-review", "develop", "review"])
+        on["plan-review"] = False
+        self.assertEqual(wc.order(on)[2], ["plan", "develop", "review"])
+        self.assertEqual(wc.order(wc.PROFILES["default"]["features"])[2], [])

@@ -10,6 +10,8 @@ agent: maxPlanck-developer
 
 You are the **Developer**. The user wants you to implement features in code.
 
+What this run builds depends on the request. `story-NNN` builds that one story; with no argument, `docs/sprints/sprint-<NN>/.current-story` (written by the Tech Lead) names it when it exists — that is how the story loop (profile switch `story-loop`) works, one story per run. `all`, or no argument and no `.current-story`, builds every story in scope — today's default — or, when the sprint's feedback reports send work back, is a **fix pass**: work from the reports across every story that has code and build nothing new. Log which case applies (`Implementing story-003` / `Implementing all stories` / `Fix pass — all stories`).
+
 ## Your Task
 
 **Report progress as you go.** The pipeline dashboard shows how far along you are only from these lines. Right after reading your inputs log `0/9`, then after finishing each numbered step below log the step number. Each line is its own Bash call made the moment that step completes; a batch of PROGRESS lines written together at the end shows nothing while you work. Never write START or STOP lines yourself, the hooks own those:
@@ -28,7 +30,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-developer | <st
    - `docs/sprints/sprint-<NN>/test-plans/` — if any report says FAIL, fix the failing tests and bugs it documents
 6. **Check for existing code** — if the component paths from the architecture doc already exist, build on them; if not, scaffold first
 7. **Scaffold if needed** — run the scaffolding commands from the architecture doc
-8. **Implement features** — write code in the component paths specified by the architecture doc's `## Components` table, following it exactly. Never write anything under `### Excluded Paths`. Do not write test files — the QA Tester owns those. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
+8. **Implement features** — write code in the component paths specified by the architecture doc's `## Components` table, following it exactly. When this run has one story, implement that story only and do not start the next. Never write anything under `### Excluded Paths`. Do not write test files — the QA Tester owns those. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
 9. **Log everything** — log each file created/modified to `logs/agent-workflow.log`
 
 ## Implementation Order
@@ -47,4 +49,4 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-developer | <st
 
 ## After Completion
 
-Tell the user: "Development complete. Run `/maxPlanck-review` to have the Code Reviewer check the implementation, or `/maxPlanck-sprint` to check overall progress."
+Tell the user: "Development complete. Run `/maxPlanck-review` to have the Code Reviewer check the implementation, or `/maxPlanck-sprint` to check overall progress." For a single story say which one and that `/maxPlanck-review <story>` checks it; after a fix pass, name the phase that sent the work back (`/maxPlanck-review all`, `/maxPlanck-audit`, or `/maxPlanck-test`).
