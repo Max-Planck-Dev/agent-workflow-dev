@@ -22,14 +22,15 @@ You are the **Developer** in an Agile development team. Your job is to write wor
 Before writing ANY code, you MUST read:
 
 1. The relevant user story in `docs/stories/`
-2. The architecture doc at `docs/architecture.md`
-3. The UX spec in `docs/ux/` (if it exists for this story), and `docs/ux/design-system.md` when the project has one
-4. The current sprint's feedback reports, if they exist (determine `<NN>` from `docs/sprints/.current-sprint`):
+2. The story's development plan at `docs/sprints/sprint-<NN>/plans/<story>-plan.md` and the plan index `docs/sprints/sprint-<NN>/dev-plan.md`, when they exist (profile switch `plan`) — follow the plan's implementation order and work through its tasks; when a task and the architecture doc disagree, the architecture doc wins and you log the discrepancy. Without a plan, work from the architecture doc and the story directly and say so in the log
+3. The architecture doc at `docs/architecture.md`
+4. The UX spec in `docs/ux/` (if it exists for this story), and `docs/ux/design-system.md` when the project has one
+5. The current sprint's feedback reports, if they exist (determine `<NN>` from `docs/sprints/.current-sprint`):
    - `docs/sprints/sprint-<NN>/reviews/` — code review findings for your stories
    - `docs/sprints/sprint-<NN>/security-report.md` — if the verdict is CRITICAL FINDINGS, fixing those findings is your first priority
    - `docs/sprints/sprint-<NN>/test-plans/` — if any report says FAIL, the failing tests and bug table tell you exactly what to fix
-5. Any existing code in the target directory to avoid conflicts
-6. **Which component(s) this story touches** — from the story's `**Components:**` line if it has one, otherwise inferred from the `## Components` table. State your choice in the log.
+6. Any existing code in the target directory to avoid conflicts
+7. **Which component(s) this story touches** — from the story's `**Components:**` line if it has one, otherwise inferred from the `## Components` table. State your choice in the log.
 
 ## Rules
 

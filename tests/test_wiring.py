@@ -150,3 +150,29 @@ class DesignReviewWiringTests(unittest.TestCase):
 
     def test_installer_ships_the_helper(self):
         self.assertIn("review_rounds:reviews", self.read("setup.sh"))
+
+
+class PlanWiringTests(unittest.TestCase):
+    """The plan switch: a Tech Lead, a skill, and a Developer that follows the plan."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_skill_is_bound_to_the_tech_lead(self):
+        skill = self.read(".claude/skills/maxPlanck-plan/SKILL.md")
+        self.assertIn("agent: maxPlanck-tech-lead", skill)
+        self.assertIn("context: fork", skill)
+        self.assertIn("dev-plan.md", skill)
+
+    def test_developer_and_orchestrators_know_the_plans(self):
+        for rel in (".claude/agents/maxPlanck-developer.md", ".claude/skills/maxPlanck-develop/SKILL.md",
+                    ".claude/skills/maxPlanck-feeling-lucky/SKILL.md", ".claude/skills/maxPlanck-change/SKILL.md",
+                    ".claude/skills/maxPlanck-sprint/SKILL.md"):
+            self.assertIn("plan", self.read(rel), rel)
+        self.assertIn("maxPlanck-plan all", self.read(".claude/skills/maxPlanck-feeling-lucky/SKILL.md"))
+
+    def test_tech_lead_writes_only_plans(self):
+        agent = self.read(".claude/agents/maxPlanck-tech-lead.md")
+        self.assertIn("MUST NOT write source code", agent)
+        self.assertIn("plans/story-NNN-plan.md", agent)

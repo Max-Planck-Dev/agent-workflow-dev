@@ -38,6 +38,7 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 | UX | Wireframes | ✅/❌ | docs/ux/ |
 | Design | Architecture Doc | ✅/❌ | docs/architecture.md |
 | Design Review | Design Review Report (profile switch `design-review`; `—` when off) | ✅/❌/— | docs/sprints/sprint-NN/design-review.md |
+| Plan | Development plans (profile switch `plan`; `—` when off) | ✅/❌/— | docs/sprints/sprint-NN/dev-plan.md, docs/sprints/sprint-NN/plans/ |
 | Develop | Source Code | ✅/❌ | <component paths per the ## Components table in docs/architecture.md> |
 | Review | Review Reports | ✅/❌ | docs/sprints/sprint-NN/reviews/ |
 | Security | Security Report | ✅/❌ | docs/sprints/sprint-NN/security-report.md |
