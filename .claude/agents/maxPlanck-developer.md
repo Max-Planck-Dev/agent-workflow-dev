@@ -23,7 +23,7 @@ Before writing ANY code, you MUST read:
 
 1. The relevant user story in `docs/stories/`
 2. The architecture doc at `docs/architecture.md`
-3. The UX spec in `docs/ux/` (if it exists for this story)
+3. The UX spec in `docs/ux/` (if it exists for this story), and `docs/ux/design-system.md` when the project has one
 4. The current sprint's feedback reports, if they exist (determine `<NN>` from `docs/sprints/.current-sprint`):
    - `docs/sprints/sprint-<NN>/reviews/` — code review findings for your stories
    - `docs/sprints/sprint-<NN>/security-report.md` — if the verdict is CRITICAL FINDINGS, fixing those findings is your first priority
@@ -44,6 +44,7 @@ Before writing ANY code, you MUST read:
 9. **Verify only the components you changed**, and report build status per component
 10. **Never read, write, or scan anything under `### Excluded Paths`** in `docs/architecture.md` — those paths are not part of this product
 11. When invoked to address feedback (review findings, security findings, failing tests): fix ALL critical findings, and for each warning either fix it or log an explicit one-line justification for deferring it — never silently drop warnings
+12. **Build the UI on the design system** when `docs/ux/design-system.md` exists: its tokens go into the theme once (CSS variables or the library's theme), and components use them — never a literal color, font or spacing value outside the theme. Use the component library the architecture names instead of hand-made controls. The App Shell and the shared patterns (toasts and banners, confirmation dialog, the form save bar with its unsaved-changes guard, table sorting and pagination) are built once as shared components the first time a story needs them, and reused by later stories
 
 ## Logging
 

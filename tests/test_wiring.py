@@ -88,3 +88,32 @@ class SourceRepoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DesignSystemWiringTests(unittest.TestCase):
+    """The design-system switch: resolved without asking, and read by everyone downstream."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_kickoff_resolves_the_design_system_without_asking(self):
+        skill = self.read(".claude/skills/maxPlanck-kickoff/SKILL.md")
+        step = skill[skill.index("**Settle the design system**"):skill.index("**Write or update the PRD**")]
+        self.assertIn("Designer's call", step)
+        self.assertIn("design-system=", step)
+        self.assertNotIn("ask the user", step.lower())
+        choices = self.read(".claude/skills/maxPlanck-kickoff/design-system-choices.md")
+        self.assertIn("Nobody is asked anything", choices)
+        self.assertIn("**Source:** new", choices)
+
+    def test_downstream_readers_know_the_design_system_file(self):
+        for rel in (".claude/agents/maxPlanck-ux-designer.md", ".claude/agents/maxPlanck-architect.md",
+                    ".claude/agents/maxPlanck-developer.md", ".claude/skills/maxPlanck-ux/SKILL.md",
+                    ".claude/skills/maxPlanck-design/SKILL.md", ".claude/skills/maxPlanck-feeling-lucky/SKILL.md"):
+            self.assertIn("docs/ux/design-system.md", self.read(rel), rel)
+
+    def test_the_switch_exists_and_is_off_by_default(self):
+        self.assertIn("design-system", wc.FEATURES)
+        self.assertFalse(wc.PROFILES["default"]["features"]["design-system"])
+        self.assertTrue(wc.PROFILES["nacho"]["features"]["design-system"])
