@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/Max-Planck-Dev/agent-workflow-dev",
   "repository": "https://github.com/Max-Planck-Dev/agent-workflow-dev",
-  "keywords": ["agile",, "workflow",, "multi-agent",, "scrum",, "release-reports",, "dashboard",, "herdr"],
+  "keywords": ["agile", "workflow", "multi-agent", "scrum", "release-reports", "dashboard", "herdr"],
   "skills": [
     "./.claude/skills/maxPlanck-adopt",
     "./.claude/skills/maxPlanck-audit",

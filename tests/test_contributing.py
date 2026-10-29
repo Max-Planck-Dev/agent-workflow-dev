@@ -6,6 +6,7 @@ the change is deliberate, never a side effect.
 """
 
 import ast
+import json
 import os
 import re
 import shutil
@@ -90,6 +91,7 @@ class PipelineIsCompleteTests(unittest.TestCase):
 
     def test_plugin_lists_every_project_skill_and_no_repo_only_one(self):
         manifest = read(os.path.join(".claude-plugin", "plugin.json"))
+        json.loads(manifest)  # the manifest must stay valid JSON
         listed = set(re.findall(r"skills/(maxPlanck-[a-z-]+)\"", manifest))
         self.assertEqual(listed, EXPECTED_SKILLS - repo_only_skills())
 
