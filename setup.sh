@@ -236,6 +236,9 @@ done
 # Every file inside travels, with the prefix rewritten in names and content.
 for skill_dir in "$SCRIPT_DIR"/.claude/skills/${SRC_PREFIX}-*/; do
   [ -d "$skill_dir" ] || continue
+  # A .repo-only marker means the skill improves the workflow repository
+  # itself (e.g. maxPlanck-proposal) and has no meaning inside a project.
+  [ -f "$skill_dir/.repo-only" ] && continue
   dst_dir=".claude/skills/$(rebrand "$(basename "$skill_dir")")"
   mkdir -p "$dst_dir"
   find "$skill_dir" -type f | while read -r f; do

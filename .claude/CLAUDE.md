@@ -72,6 +72,8 @@ Skills are phase-named; agents are role-named, and the two sets must never colli
 
 **Change requests:** `/maxPlanck-change "<description>"` — runs a post-cycle change through the team (docs updated first, then implement → review → test), so manual asks never drift out of the documented state.
 
+**Contributing to the workflow itself:** `/maxPlanck-proposal "<idea>"` or `--from-pr <N>` — repo-only (a `.repo-only` marker in its directory keeps `setup.sh` and the plugin from shipping it): assesses the idea against `CONTRIBUTING.md`, implements the compliant shape with tests on a `proposal/*` branch, and opens the PR with `gh`.
+
 **Release:** `/maxPlanck-report` — the Release Manager produces the 4-report handoff pack (internal release report, client release report, blog-style release note, QA checklist) in Markdown + HTML.
 
 Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
