@@ -215,3 +215,12 @@ class ProfileRenderTests(unittest.TestCase):
         self.assertIn("gate", frame)
         for line in frame.splitlines():
             self.assertLessEqual(len(line), 60)
+
+
+class StoryRenderTests(unittest.TestCase):
+    def test_header_and_running_phase_show_the_story(self):
+        from test_parser import PerStoryLoopTests
+        run = pd.parse_log(PerStoryLoopTests.LINES, "maxPlanck", now=ts("2026-10-17 10:40:00"))
+        frame = "\n".join(pd.render(run, 60, 40, color=False))
+        self.assertIn("story 2/3 · story-002", frame)
+        self.assertRegex(frame, r"plan\s+story-002")
