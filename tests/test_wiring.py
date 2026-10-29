@@ -1,0 +1,90 @@
+"""How the pieces are wired: the config hook, and the repo's own agent files."""
+
+import os
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+from helpers import ROOT, clean_env, load_module
+
+HOOK = os.path.join(ROOT, ".claude", "hooks", "apply-workflow-config.sh")
+HELPER = os.path.join(ROOT, "bin", "workflow_config.py")
+wc = load_module("workflow_config", HELPER)
+
+AGENT = "---\nname: maxPlanck-developer\nmodel: {model}\n---\n"
+
+
+class ApplyConfigHookTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="hook-")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, rel, text):
+        path = os.path.join(self.tmp, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def run_hook(self):
+        out = subprocess.run(["bash", HOOK], capture_output=True, text=True,
+                             env=clean_env(CLAUDE_PROJECT_DIR=self.tmp), timeout=20)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return out.stdout
+
+    def install_helper(self):
+        shutil.copy(HELPER, os.path.join(self.tmp, ".claude", "bin", "maxPlanck-config.py")) if os.path.isdir(
+            os.path.join(self.tmp, ".claude", "bin")) else (os.makedirs(os.path.join(self.tmp, ".claude", "bin")),
+                                                           shutil.copy(HELPER, os.path.join(self.tmp, ".claude", "bin", "maxPlanck-config.py")))
+
+    def test_silent_without_config_or_helper(self):
+        self.assertEqual(self.run_hook(), "")
+        self.write(".claude/maxPlanck-config.json", '{"profile": "nacho"}')
+        self.assertEqual(self.run_hook(), "")  # config but no helper: a plugin install
+
+    def test_applies_the_profile_to_a_stale_agent_file(self):
+        self.write(".claude/maxPlanck-config.json", '{"profile": "nacho"}')
+        self.write(".claude/agents/maxPlanck-developer.md", AGENT.format(model="sonnet"))
+        self.install_helper()
+        self.assertIn("maxPlanck-developer: sonnet → opus", self.run_hook())
+        with open(os.path.join(self.tmp, ".claude", "agents", "maxPlanck-developer.md"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), AGENT.format(model="opus"))
+        self.assertEqual(self.run_hook(), "")  # second run: nothing to do
+
+    def test_corrupt_config_is_reported_but_never_fails_the_hook(self):
+        self.write(".claude/maxPlanck-config.json", "{broken")
+        self.write(".claude/agents/maxPlanck-developer.md", AGENT.format(model="sonnet"))
+        self.install_helper()
+        self.assertIn("ERROR=", self.run_hook())
+
+
+class SourceRepoTests(unittest.TestCase):
+    """The repository itself is the default profile by construction."""
+
+    def test_every_agent_file_carries_the_default_profile_model(self):
+        config = {"profile": "default"}
+        for role in wc.installed_roles(ROOT):
+            with open(wc.agent_file(ROOT, role), encoding="utf-8") as fh:
+                line = wc.MODEL_LINE_RE.search(fh.read())
+            self.assertIsNotNone(line, role)
+            self.assertEqual(line.group(1), wc.model(config, role)[0], role)
+
+    def test_no_installed_config_or_bin_in_the_repository(self):
+        self.assertFalse(os.path.exists(os.path.join(ROOT, ".claude", "maxPlanck-config.json")))
+        self.assertFalse(os.path.exists(os.path.join(ROOT, ".claude", "bin")))
+
+    def test_settings_json_lists_the_hook(self):
+        with open(os.path.join(ROOT, ".claude", "settings.json"), encoding="utf-8") as fh:
+            self.assertIn("apply-workflow-config.sh", fh.read())
+
+    def test_profiles_are_well_formed(self):
+        for name, preset in wc.PROFILES.items():
+            self.assertEqual(set(preset["features"]), set(wc.FEATURES), name)
+            self.assertFalse(wc.unmet(preset["features"]), name)
+            self.assertTrue(wc.MODEL_RE.match(preset["models"]["default"]), name)
+
+
+if __name__ == "__main__":
+    unittest.main()

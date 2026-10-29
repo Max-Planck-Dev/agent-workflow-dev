@@ -72,6 +72,8 @@ Skills are phase-named; agents are role-named, and the two sets must never colli
 
 **Change requests:** `/maxPlanck-change "<description>"` — runs a post-cycle change through the team (docs updated first, then implement → review → test), so manual asks never drift out of the documented state.
 
+**Configuration:** `/maxPlanck-config` — shows or changes the project's **profile** (`.claude/maxPlanck-config.json`: a named preset of feature switches and agent models, plus overrides). `default` is this document's pipeline exactly; other profiles turn optional phases on. Orchestrators read the switches once at run start (`python3 .claude/bin/maxPlanck-config.py features`, every switch off when the helper is absent) and the SessionStart hook `apply-workflow-config.sh` writes the models into the agent files. Unbound like the orchestrators, but it is neither a phase nor an orchestrator and never writes to `logs/agent-workflow.log`.
+
 **Contributing to the workflow itself:** `/maxPlanck-proposal "<idea>"` or `--from-pr <N>` — repo-only (a `.repo-only` marker in its directory keeps `setup.sh` and the plugin from shipping it): assesses the idea against `CONTRIBUTING.md`, implements the compliant shape with tests on a `proposal/*` branch, and opens the PR with `gh`.
 
 **Release:** `/maxPlanck-report` — the Release Manager produces the 4-report handoff pack (internal release report, client release report, blog-style release note, QA checklist) in Markdown + HTML.
