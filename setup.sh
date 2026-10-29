@@ -49,6 +49,7 @@ set -euo pipefail
 
 SRC_PREFIX="maxPlanck"
 PREFIX="$SRC_PREFIX"
+PROFILE=""
 TARGET="."
 
 BOLD='\033[1m'
@@ -75,6 +76,15 @@ while [ $# -gt 0 ]; do
       PREFIX="${1#--prefix=}"
       shift
       ;;
+    --profile)
+      [ $# -ge 2 ] || fail "--profile requires a value"
+      PROFILE="$2"
+      shift 2
+      ;;
+    --profile=*)
+      PROFILE="${1#--profile=}"
+      shift
+      ;;
     -*)
       fail "Unknown option: $1"
       ;;
@@ -95,6 +105,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ ! -d "$SCRIPT_DIR/.claude" ]; then
   fail "Cannot find .claude/ directory next to this script ($SCRIPT_DIR). Is the repo intact?"
+fi
+
+# A profile is a named preset of feature switches and agent models (see
+# bin/workflow_config.py). Validate the name before touching anything.
+if [ -n "$PROFILE" ] && ! python3 "$SCRIPT_DIR/bin/workflow_config.py" profiles | grep -qx -- "$PROFILE"; then
+  fail "Unknown profile '$PROFILE'. Known: $(python3 "$SCRIPT_DIR/bin/workflow_config.py" profiles | tr '\n' ' ')"
 fi
 
 # Record where this install came from, for the update check.
@@ -271,13 +287,35 @@ for hook_script in "$SCRIPT_DIR"/.claude/hooks/*.sh "$SCRIPT_DIR"/.claude/hooks/
 done
 ok "Installed hook scripts"
 
-# Pipeline dashboard — a standalone terminal view of the running pipeline.
-# Installed under .claude/bin/ so it travels with the workflow and updates
-# with it; herdr users get the same script through the linked plugin.
+# Helper scripts — installed under .claude/bin/ so they travel with the
+# workflow and update with it: the pipeline dashboard (herdr users get the
+# same script through the linked plugin) and the profile/config helper.
 mkdir -p .claude/bin
-render "$SCRIPT_DIR/bin/pipeline_dashboard.py" ".claude/bin/${PREFIX}-dashboard.py"
-chmod +x ".claude/bin/${PREFIX}-dashboard.py"
+for pair in pipeline_dashboard:dashboard workflow_config:config; do
+  render "$SCRIPT_DIR/bin/${pair%%:*}.py" ".claude/bin/${PREFIX}-${pair##*:}.py"
+  chmod +x ".claude/bin/${PREFIX}-${pair##*:}.py"
+done
 ok "Installed ${PREFIX}-dashboard.py (python3 .claude/bin/${PREFIX}-dashboard.py)"
+
+# Profile — .claude/<prefix>-config.json names the preset this project
+# follows and records only its overrides. --profile writes that preset
+# (dropping overrides, and saying so); without it an existing choice is kept
+# and a new install gets `default`. The helper then writes each agent's model
+# into the agent files just installed; the SessionStart hook does the same at
+# every session start, so later edits need no re-install.
+if [ -n "$PROFILE" ]; then
+  CONFIG_OUT="$(python3 ".claude/bin/${PREFIX}-config.py" init --profile "$PROFILE")"
+else
+  CONFIG_OUT="$(python3 ".claude/bin/${PREFIX}-config.py" init)"
+fi
+echo "$CONFIG_OUT" | grep -E '^(dropped|NOTICE=)' | sed -e 's/^NOTICE=//' -e 's/^/    /' || true
+if MODELS_OUT="$(python3 ".claude/bin/${PREFIX}-config.py" apply --quiet)"; then
+  [ -n "$MODELS_OUT" ] && echo "$MODELS_OUT" | sed 's/^/    /'
+  ok "Installed ${PREFIX}-config.py; profile $(python3 ".claude/bin/${PREFIX}-config.py" features | sed -n 's/^PROFILE=//p') (.claude/${PREFIX}-config.json)"
+else
+  warn "Configuration not applied — fix .claude/${PREFIX}-config.json and run: python3 .claude/bin/${PREFIX}-config.py apply"
+  echo "$MODELS_OUT" | sed 's/^/    /'
+fi
 
 # Workflow conventions (ownership table, log format, Definition of Done).
 # Never clobber an existing CLAUDE.md — the workflow depends on these
@@ -322,25 +360,17 @@ settings_path = sys.argv[1]
 # existed) are removed so they don't produce agent-less log lines.
 LEGACY_KEY = "$CLAUDE_AGENT_NAME"
 
+def command_hook(script, *args):
+    command = " ".join(['"$CLAUDE_PROJECT_DIR"/.claude/hooks/' + script, *args])
+    return script, {"hooks": [{"type": "command", "command": command}]}
+
 workflow_hooks = {
-    "SubagentStart": ("log-agent-lifecycle.sh", {
-        "hooks": [{
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/log-agent-lifecycle.sh START"
-        }]
-    }),
-    "SubagentStop": ("log-agent-lifecycle.sh", {
-        "hooks": [{
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/log-agent-lifecycle.sh STOP"
-        }]
-    }),
-    "SessionStart": ("check-workflow-version.sh", {
-        "hooks": [{
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/check-workflow-version.sh"
-        }]
-    }),
+    "SubagentStart": [command_hook("log-agent-lifecycle.sh", "START")],
+    "SubagentStop": [command_hook("log-agent-lifecycle.sh", "STOP")],
+    "SessionStart": [
+        command_hook("check-workflow-version.sh"),
+        command_hook("apply-workflow-config.sh"),
+    ],
 }
 
 try:
@@ -352,7 +382,7 @@ except (FileNotFoundError, json.JSONDecodeError):
 if "hooks" not in settings:
     settings["hooks"] = {}
 
-for event, (hook_key, hook_entry) in workflow_hooks.items():
+for event, wanted in workflow_hooks.items():
     entries = settings["hooks"].get(event, [])
 
     entries = [
@@ -363,13 +393,14 @@ for event, (hook_key, hook_entry) in workflow_hooks.items():
         )
     ]
 
-    already_installed = any(
-        hook_key in h.get("command", "")
-        for e in entries
-        for h in e.get("hooks", [])
-    )
-    if not already_installed:
-        entries.append(hook_entry)
+    for hook_key, hook_entry in wanted:
+        already_installed = any(
+            hook_key in h.get("command", "")
+            for e in entries
+            for h in e.get("hooks", [])
+        )
+        if not already_installed:
+            entries.append(hook_entry)
 
     settings["hooks"][event] = entries
 
@@ -462,7 +493,10 @@ echo "  /${PREFIX}-feeling-lucky  — Runs the entire pipeline automatically"
 echo "  /${PREFIX}-adopt          — Adopts an existing codebase (reverse-engineers founding docs)"
 echo "  /${PREFIX}-change         — Runs a change request through the team (docs stay in sync)"
 echo "  /${PREFIX}-report         — Generates the 4-report release pack (internal / client / release note / QA)"
+echo "  /${PREFIX}-config         — Shows or changes the profile, feature switches and agent models"
 echo ""
+echo "  Profile:           .claude/${PREFIX}-config.json (python3 .claude/bin/${PREFIX}-config.py show;"
+echo "                     re-run this installer with --profile <name> to switch)"
 echo "  Watch a run live:  python3 .claude/bin/${PREFIX}-dashboard.py   (q to quit)"
 echo "  Inside herdr the dashboard opens itself as a side pane once the"
 echo "  workflow repo is linked: herdr plugin link $SCRIPT_DIR"

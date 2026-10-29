@@ -42,6 +42,8 @@ Existing features do not get retroactive stories — story numbering starts with
 
 **Or run `/maxPlanck-feeling-lucky` to execute the entire pipeline automatically.**
 
+The pipeline above is the `default` profile. `/maxPlanck-config show` prints the project's profile, switches and agent models; `/maxPlanck-config profile nacho` switches to a profile with the optional phases on.
+
 Each cycle gets its own folder under `docs/sprints/` (the counter lives in `docs/sprints/.current-sprint`), so nothing from a prior cycle is ever overwritten. Living docs — the PRD, architecture doc, stories, and UX specs — are updated in place with append-only change logs and history sections.
 
 ## Requesting a Change

@@ -82,7 +82,12 @@ Ten specialized AI agents — Product Owner, UX Designer, Architect, Developer, 
 | `/maxPlanck-adopt` | Adopts an existing codebase — reverse-engineers the founding docs as-built |
 | `/maxPlanck-change` | Runs a change request through the team — docs update first, then implement → review → test |
 | `/maxPlanck-report` | Release Manager generates the 4-report release pack: internal report, client report, blog-style release note, QA checklist |
+| `/maxPlanck-config` | Shows or changes the project's profile, feature switches and agent models |
 | `/maxPlanck-proposal` | This repo only (never installed): turns an idea or an existing PR into a PR that complies with `CONTRIBUTING.md` |
+
+## Profiles
+
+A project follows a named **profile**, recorded in `.claude/maxPlanck-config.json` together with any overrides. `default` is the pipeline documented here: ten agents, nothing extra, every agent on `sonnet`. Other profiles turn on optional phases and other models; `nacho` is the first. Pick one at install time (`./setup.sh --profile nacho /path/to/project`) or later (`/maxPlanck-config profile nacho`), and change single switches with `/maxPlanck-config set design-review=on developer=opus`. The models are written into the agent files at install and at every session start; the switches are read by `/maxPlanck-feeling-lucky` and `/maxPlanck-change` when a run starts. A profile that turns on an external reviewer is the project's consent to send its documents to that service; `default` never does.
 
 ## Tech Stack (Built by Agents)
 

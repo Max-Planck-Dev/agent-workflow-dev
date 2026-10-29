@@ -30,7 +30,7 @@ EXPECTED_SKILLS = {
     "maxPlanck-kickoff", "maxPlanck-ux", "maxPlanck-design", "maxPlanck-develop",
     "maxPlanck-review", "maxPlanck-audit", "maxPlanck-infra", "maxPlanck-test",
     "maxPlanck-sprint", "maxPlanck-feeling-lucky", "maxPlanck-adopt",
-    "maxPlanck-change", "maxPlanck-report",
+    "maxPlanck-change", "maxPlanck-report", "maxPlanck-config",
     "maxPlanck-proposal",  # repo-only: never installed, never in the plugin
 }
 
@@ -142,6 +142,22 @@ class NoWorkingArtifactsTests(unittest.TestCase):
     def test_no_transcripts_plans_or_reports(self):
         offenders = [f for f in repo_files() if any(re.search(p, f) for p in FORBIDDEN_FILE_PATTERNS)]
         self.assertEqual(offenders, [])
+
+
+class DataStaysLocalTests(unittest.TestCase):
+    """Rule 3: an external reviewer is opt-in through a profile or switch; no opt-out file exists."""
+
+    def test_no_opt_out_file_is_mentioned_anywhere(self):
+        marker = "no-" + "codex"
+        offenders = []
+        for rel in repo_files():
+            try:
+                with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+                    if marker in fh.read():
+                        offenders.append(rel)
+            except (UnicodeDecodeError, OSError):
+                continue
+        self.assertEqual(offenders, [], "an opt-out file is not an acceptable consent mechanism")
 
 
 class NoDuplicatedHelpersTests(unittest.TestCase):
