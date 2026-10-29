@@ -8,6 +8,8 @@ import unittest
 
 from helpers import ROOT, clean_env, load_module
 
+load_module("review_rounds", os.path.join(ROOT, "bin", "review_rounds.py"))
+
 HOOK = os.path.join(ROOT, ".claude", "hooks", "apply-workflow-config.sh")
 HELPER = os.path.join(ROOT, "bin", "workflow_config.py")
 wc = load_module("workflow_config", HELPER)
@@ -117,3 +119,34 @@ class DesignSystemWiringTests(unittest.TestCase):
         self.assertIn("design-system", wc.FEATURES)
         self.assertFalse(wc.PROFILES["default"]["features"]["design-system"])
         self.assertTrue(wc.PROFILES["nacho"]["features"]["design-system"])
+
+
+class DesignReviewWiringTests(unittest.TestCase):
+    """The design-review switch: an agent, a skill, the helper, and the Architect's log."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_skill_is_bound_to_the_reviewer_and_uses_the_helper(self):
+        skill = self.read(".claude/skills/maxPlanck-design-review/SKILL.md")
+        self.assertIn("agent: maxPlanck-design-reviewer", skill)
+        self.assertIn("context: fork", skill)
+        self.assertIn("maxPlanck-reviews.py", skill)
+        self.assertIn("--kind design", skill)
+
+    def test_architect_rules_in_the_log_the_helper_reads(self):
+        agent = self.read(".claude/agents/maxPlanck-architect.md")
+        from review_rounds import KINDS  # loaded by test_review_rounds through helpers
+        self.assertIn(KINDS["design"]["log_heading"], agent)
+        for word in ("ACCEPTED", "PARTIAL", "REJECTED"):
+            self.assertIn(word, agent)
+
+    def test_orchestrators_gate_the_phase_on_the_switch(self):
+        for rel in (".claude/skills/maxPlanck-feeling-lucky/SKILL.md", ".claude/skills/maxPlanck-change/SKILL.md"):
+            text = self.read(rel)
+            self.assertIn("design-review", text, rel)
+            self.assertIn("open --kind design", text, rel)
+
+    def test_installer_ships_the_helper(self):
+        self.assertIn("review_rounds:reviews", self.read("setup.sh"))

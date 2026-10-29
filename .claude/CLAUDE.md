@@ -22,6 +22,7 @@ Product Owner → UX Designer → Architect → Developer → Code Reviewer → 
 | `maxPlanck-product-owner` | `docs/prd.md`, `docs/stories/`, `docs/sprints/.current-sprint` |
 | `maxPlanck-ux-designer` | `docs/ux/` |
 | `maxPlanck-architect` | `docs/architecture.md` |
+| `maxPlanck-design-reviewer` (profile switch `design-review`) | `docs/sprints/sprint-NN/design-review.md` (through `.claude/bin/maxPlanck-reviews.py`) |
 | `maxPlanck-developer` | Component paths per the `## Components` table in `docs/architecture.md` |
 | `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` |
 | `maxPlanck-security` | `docs/sprints/sprint-NN/security-report.md` |
@@ -39,7 +40,7 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 **Living documents** (fixed paths, updated in place, with append-only history):
 
 - `docs/prd.md` — ends with a `## Change Log` table (`| Date | Sprint | Change |`); every edit appends an entry
-- `docs/architecture.md` — same Change Log rule
+- `docs/architecture.md` — same Change Log rule; once a design review has run, it also carries an append-only `## Design Review Log` (one row per proposal, written by the Architect)
 - `docs/stories/story-NNN.md` — sequential numbering continues forever; changes append a `## History` entry, never silently rewrite
 - `docs/ux/story-NNN-design.md` — redesigns append a `## Revision <date>` section
 - `docs/ux/design-system.md` — present when the PRD's `## Design System` source is `new` or `existing` (profile switch `design-system`); changes append a `## Revision <date>` section
@@ -49,6 +50,7 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 
 ```
 docs/sprints/sprint-NN/
+├── design-review.md         (profile switch design-review; one section per round)
 ├── reviews/story-NNN-review.md
 ├── test-plans/story-NNN-tests.md
 ├── security-report.md
@@ -66,6 +68,8 @@ The current sprint number lives in `docs/sprints/.current-sprint` (two digits). 
 **Step-by-step:** `/maxPlanck-kickoff` → `/maxPlanck-ux` → `/maxPlanck-design` → `/maxPlanck-develop` → `/maxPlanck-review` → `/maxPlanck-audit` → `/maxPlanck-infra` → `/maxPlanck-test` → `/maxPlanck-sprint`
 
 Skills are phase-named; agents are role-named, and the two sets must never collide. The security phase skill is `/maxPlanck-audit` (bound to the `maxPlanck-security` agent) and the infrastructure phase skill is `/maxPlanck-infra` (bound to the `maxPlanck-devops` agent).
+
+**Optional phases (profile switches):** `/maxPlanck-design-review` (switch `design-review`, bound to `maxPlanck-design-reviewer`) — an independent review of `docs/architecture.md` before any code; `bin/review_rounds.py` (installed as `.claude/bin/maxPlanck-reviews.py`) does the filing, so round numbers, stable `DR-NN-n` proposal IDs, open proposals and the verdict are computed by that script, never by an agent. The Architect rules on every proposal in the doc's `## Design Review Log`.
 
 **Full auto:** `/maxPlanck-feeling-lucky` — runs the entire pipeline above in one command, no manual triggering between phases.
 
@@ -144,7 +148,8 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **Adopt** (brownfield only): `docs/prd.md` as-built with a Current Capabilities inventory and adoption Change Log entry, `docs/architecture.md` as-built with verified build/run commands and a Known Deviations & Debt section, `docs/sprints/.current-sprint` at `01`, adoption-baseline sprint summary
 - **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct; with the `design-system` switch on, a new PRD also carries a `## Design System` section resolved without asking (an existing reference, answers in the arguments, or `Designer's call`)
 - **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns); `docs/ux/design-system.md` written or revised first when the PRD's design system source is `new` or `existing`
-- **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint
+- **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint; every open design review proposal ruled on in `## Design Review Log`
+- **Design Review** (switch `design-review`): `docs/sprints/sprint-NN/design-review.md` with a `## Round` section per run naming its reviewer, proposals under stable `DR-NN-n` IDs, an Open Proposals list, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict
 - **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
 - **Review:** Reports in `docs/sprints/sprint-NN/reviews/` with severity-categorized findings and APPROVED/NEEDS CHANGES verdict
 - **Security:** Security report in `docs/sprints/sprint-NN/security-report.md` with OWASP-mapped findings, ISR table (carried + new, stable IDs), and CLEAR/WARNINGS/CRITICAL FINDINGS verdict

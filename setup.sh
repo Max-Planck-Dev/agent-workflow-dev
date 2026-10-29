@@ -291,7 +291,7 @@ ok "Installed hook scripts"
 # workflow and update with it: the pipeline dashboard (herdr users get the
 # same script through the linked plugin) and the profile/config helper.
 mkdir -p .claude/bin
-for pair in pipeline_dashboard:dashboard workflow_config:config; do
+for pair in pipeline_dashboard:dashboard workflow_config:config review_rounds:reviews; do
   render "$SCRIPT_DIR/bin/${pair%%:*}.py" ".claude/bin/${PREFIX}-${pair##*:}.py"
   chmod +x ".claude/bin/${PREFIX}-${pair##*:}.py"
 done
@@ -482,6 +482,7 @@ echo ""
 echo "  /${PREFIX}-kickoff        — Product Owner writes PRD + stories from your idea"
 echo "  /${PREFIX}-ux             — UX Designer creates wireframes"
 echo "  /${PREFIX}-design         — Architect creates technical design"
+echo "  /${PREFIX}-design-review  — An independent reviewer checks the design (profile switch design-review)"
 echo "  /${PREFIX}-develop        — Developer implements the code"
 echo "  /${PREFIX}-review         — Code Reviewer checks the implementation"
 echo "  /${PREFIX}-audit          — Security Reviewer audits and writes ISRs"
