@@ -55,7 +55,7 @@ After each phase, read the relevant output to decide the next step. **Freshness 
 | Completed Phase | Read | Route |
 |----------------|------|-------|
 | `maxPlanck-kickoff` | `docs/prd.md`, `docs/stories/` | If PRD has a sprint-`<NN>` Change Log entry and 3+ stories exist → `maxPlanck-ux`. Otherwise re-run `maxPlanck-kickoff`. |
-| `maxPlanck-ux` | `docs/ux/` | If design files (or this-sprint revisions) exist for P0/P1 stories → `maxPlanck-design`. Otherwise re-run `maxPlanck-ux`. |
+| `maxPlanck-ux` | `docs/ux/`; the `**Source:**` line of the PRD's `## Design System`, if the section exists | If design files (or this-sprint revisions) exist for P0/P1 stories — and `docs/ux/design-system.md` exists whenever the PRD has that section with a source other than `none` — → `maxPlanck-design`. Otherwise re-run `maxPlanck-ux`. |
 | `maxPlanck-design` | `docs/architecture.md` | If the doc has models + API endpoints and a sprint-`<NN>` Change Log entry → `maxPlanck-develop`. Otherwise re-run `maxPlanck-design`. |
 | `maxPlanck-develop` | Component paths per the `## Components` table in `docs/architecture.md` | Actually run each changed component's own build command from its own directory. Advance to `maxPlanck-review` only when every changed component builds. Otherwise re-run `maxPlanck-develop`. |
 | `maxPlanck-review` | `docs/sprints/sprint-<NN>/reviews/` | If **APPROVED** → `maxPlanck-audit`. If **NEEDS CHANGES** → `maxPlanck-develop`, telling it which review files to address. |

@@ -26,7 +26,7 @@ When invoked by `/maxPlanck-adopt` (the arguments contain a codebase scan summar
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-architect | <step>/4 | <what you are doing now>" >> logs/agent-workflow.log
 ```
 
-1. **Read all inputs** — read `docs/prd.md`, all stories in `docs/stories/`, and all UX specs in `docs/ux/`
+1. **Read all inputs** — read `docs/prd.md`, all stories in `docs/stories/`, and all UX specs in `docs/ux/` (including `docs/ux/design-system.md` when it exists: its component library and tokens go into the frontend stack)
 2. **Design the architecture** — write `docs/architecture.md` with the full technical design. The architecture doc is a living document: if it already exists, update the affected sections in place and append a `## Change Log` entry (`| Date | Sprint | Change |`) — never regenerate it from scratch
 3. **Be specific** — include exact folder structures, data model interfaces, API endpoint tables, scaffolding commands
 4. **Log everything** — log each decision to `logs/agent-workflow.log`

@@ -42,6 +42,7 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 - `docs/architecture.md` — same Change Log rule
 - `docs/stories/story-NNN.md` — sequential numbering continues forever; changes append a `## History` entry, never silently rewrite
 - `docs/ux/story-NNN-design.md` — redesigns append a `## Revision <date>` section
+- `docs/ux/design-system.md` — present when the PRD's `## Design System` source is `new` or `existing` (profile switch `design-system`); changes append a `## Revision <date>` section
 - `docs/devops/deployment.md` and each component's CI workflow — updated incrementally, never regenerated (same rule as the infrastructure code)
 
 **Sprint-scoped artifacts** (point-in-time, one folder per cycle, prior folders never modified):
@@ -141,8 +142,8 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 ## Definition of Done Per Phase
 
 - **Adopt** (brownfield only): `docs/prd.md` as-built with a Current Capabilities inventory and adoption Change Log entry, `docs/architecture.md` as-built with verified build/run commands and a Known Deviations & Debt section, `docs/sprints/.current-sprint` at `01`, adoption-baseline sprint summary
-- **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct
-- **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns)
+- **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct; with the `design-system` switch on, a new PRD also carries a `## Design System` section resolved without asking (an existing reference, answers in the arguments, or `Designer's call`)
+- **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns); `docs/ux/design-system.md` written or revised first when the PRD's design system source is `new` or `existing`
 - **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint
 - **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
 - **Review:** Reports in `docs/sprints/sprint-NN/reviews/` with severity-categorized findings and APPROVED/NEEDS CHANGES verdict
