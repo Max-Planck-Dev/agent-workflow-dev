@@ -233,3 +233,25 @@ class StoryLoopWiringTests(unittest.TestCase):
         on["plan-review"] = False
         self.assertEqual(wc.order(on)[2], ["plan", "develop", "review"])
         self.assertEqual(wc.order(wc.PROFILES["default"]["features"])[2], [])
+
+
+class IntegrationGateWiringTests(unittest.TestCase):
+    """The integration-gate switch: quick checks per story, one build before the audit."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_architect_records_check_lines_and_developer_logs_verdicts(self):
+        self.assertIn("- Check:", self.read(".claude/agents/maxPlanck-architect.md"))
+        self.assertIn("- Test (focused):", self.read(".claude/agents/maxPlanck-architect.md"))
+        self.assertIn("VERDICT | Agent: maxPlanck-developer", self.read(".claude/agents/maxPlanck-developer.md"))
+        self.assertIn("Check", self.read(".claude/maxPlanck-default-stack.md"))
+
+    def test_orchestrators_run_the_gate_helper(self):
+        for rel in (".claude/skills/maxPlanck-feeling-lucky/SKILL.md", ".claude/skills/maxPlanck-change/SKILL.md"):
+            text = self.read(rel)
+            self.assertIn("maxPlanck-gate.py run", text, rel)
+            self.assertIn("GATE=", text, rel)
+        self.assertIn("gate", wc.order(wc.PROFILES["nacho"]["features"])[0])
+        self.assertNotIn("gate", wc.order(wc.PROFILES["default"]["features"])[0])

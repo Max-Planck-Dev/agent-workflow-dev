@@ -28,16 +28,17 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-developer | <st
    - `docs/sprints/sprint-<NN>/reviews/` — address all critical findings; fix or explicitly justify deferring each warning
    - `docs/sprints/sprint-<NN>/security-report.md` — if the verdict is CRITICAL FINDINGS, fix those findings first
    - `docs/sprints/sprint-<NN>/test-plans/` — if any report says FAIL, fix the failing tests and bugs it documents
+   - `docs/sprints/sprint-<NN>/integration-gate.md` — if its latest attempt is FAIL (profile switch `integration-gate`), make the components it names build first (the output tail of each failure is there)
 6. **Check for existing code** — if the component paths from the architecture doc already exist, build on them; if not, scaffold first
 7. **Scaffold if needed** — run the scaffolding commands from the architecture doc
 8. **Implement features** — write code in the component paths specified by the architecture doc's `## Components` table, following it exactly. When this run has one story, implement that story only and do not start the next. Never write anything under `### Excluded Paths`. Do not write test files — the QA Tester owns those. If `docs/architecture.md` has no `## Components` section, treat the whole project root as a single component with ID `app`, path `.`, using `## Project Structure` and `## Build & Run Commands` as they are today.
-9. **Log everything** — log each file created/modified to `logs/agent-workflow.log`
+9. **Log everything** — log each file created/modified to `logs/agent-workflow.log`, then, when the components have `Check` lines (profile switch `integration-gate`), one `VERDICT` line per component you changed (Rules in your agent definition): `VERDICT | Agent: maxPlanck-developer | <story or all>: <component ID> check PASS|FAIL, focused tests PASS|FAIL|NONE | Output: <component path>`
 
 ## Implementation Order
 
 1. **Order components by dependency** — data and service components before the clients that call them. With a single component, order by layer: models → services → controllers → UI. When the sprint has development plans, their story order and each plan's implementation order take precedence
 2. Within a component, follow its own layering (data models, services, controllers, module wiring, then UI and state management)
-3. Verify each component you changed compiles, running that component's Build command from its own directory (per its `## Build & Run Commands` subsection). Never substitute a different installer — `npm ci` and `npm install` are not interchangeable
+3. Verify each component you changed compiles, running that component's Build command from its own directory (per its `## Build & Run Commands` subsection) — or, when it has a `Check` line (profile switch `integration-gate`), its `Check` and `Test (focused)` commands instead, since the integration gate builds everything once after the last story. Never substitute a different installer — `npm ci` and `npm install` are not interchangeable
 
 ## Acceptance Criteria for This Phase
 

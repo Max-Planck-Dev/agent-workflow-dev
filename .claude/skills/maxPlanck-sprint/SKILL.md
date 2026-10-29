@@ -39,7 +39,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-scrum-master | 
 
 4d. **Record per-component HEADs** — with several repositories a sprint is no longer atomic, so record each in-scope repo's short HEAD hash (`git -C <path> rev-parse --short HEAD`) in the sprint summary. The release report later needs these anchors
 5. **Update story statuses** — set the `**Status:**` line in each `docs/stories/story-NNN.md` (Done when all acceptance criteria have passing tests this sprint; In Progress when started; Draft otherwise). This one line is your only permitted edit to story files
-6. **Write sprint summary** — create or update `docs/sprints/sprint-<NN>/sprint-summary.md`, including the Bugs section (open QA bugs routed to `/maxPlanck-change` or new stories) and a Blockers section listing every unresolved failure verdict (UNAVAILABLE design or plan review / CHANGES PROPOSED with open proposals / NEEDS CHANGES / CRITICAL FINDINGS / BLOCKED / FAIL) with a named next step
+6. **Write sprint summary** — create or update `docs/sprints/sprint-<NN>/sprint-summary.md`, including the Bugs section (open QA bugs routed to `/maxPlanck-change` or new stories) and a Blockers section listing every unresolved failure verdict (UNAVAILABLE design or plan review / CHANGES PROPOSED with open proposals / NEEDS CHANGES / integration gate FAIL / CRITICAL FINDINGS / BLOCKED / FAIL) with a named next step
 7. **Write platform proposals** — create `docs/sprints/sprint-<NN>/platform-proposals.md`, carrying over every proposal from the prior sprint's file with its original number and an explicit status (Still Open / Partial / Done), then adding New proposals enabled by this sprint (see the Platform Proposals section of your agent definition)
 8. **Recommend next steps** — tell the user exactly what to do next
 9. **Log everything** — log the sprint review to `logs/agent-workflow.log`
@@ -58,6 +58,7 @@ Check each phase and report status:
 | Plan Review | Plans reviewed, proposals all ruled on | Only when `docs/sprints/sprint-NN/plan-reviews/` exists (profile switch `plan-review`; report `—` otherwise): every `PR-NN-SSS-n` in a report has a row in the `## Plan Review Log` of that story's plan |
 | Develop | Code exists | Each in-scope component's path (per the `## Components` table in `docs/architecture.md`) has source files; report per component |
 | Review | Review reports | `docs/sprints/sprint-NN/reviews/` has reports, no unresolved criticals |
+| Gate | Every component builds | Only when `docs/sprints/sprint-NN/integration-gate.md` exists (profile switch `integration-gate`; report `—` otherwise): its latest attempt's verdict is PASS |
 | Security | Security report | `docs/sprints/sprint-NN/security-report.md` exists, no CRITICAL FINDINGS |
 | DevOps | Infra + CI/CD + deployment doc | The infra component's path has Terraform files, each component's CI workflow exists (both per the Components table; falling back to `infra/` and `.github/workflows/deploy.yml` when there is no such table), `docs/devops/deployment.md` has ISR compliance mapping covering this sprint's ISRs |
 | Test | Tests pass | `docs/sprints/sprint-NN/test-plans/` has reports, all tests passing |

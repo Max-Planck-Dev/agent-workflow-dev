@@ -291,7 +291,7 @@ ok "Installed hook scripts"
 # workflow and update with it: the pipeline dashboard (herdr users get the
 # same script through the linked plugin) and the profile/config helper.
 mkdir -p .claude/bin
-for pair in pipeline_dashboard:dashboard workflow_config:config review_rounds:reviews; do
+for pair in pipeline_dashboard:dashboard workflow_config:config review_rounds:reviews integration_gate:gate; do
   render "$SCRIPT_DIR/bin/${pair%%:*}.py" ".claude/bin/${PREFIX}-${pair##*:}.py"
   chmod +x ".claude/bin/${PREFIX}-${pair##*:}.py"
 done

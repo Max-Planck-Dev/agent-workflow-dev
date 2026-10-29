@@ -40,7 +40,7 @@ A project may be one folder or several independently-buildable folders, each pos
 - **Operations** — each component's CI workflows, any component of Kind `infra`, deploy scripts. Note whether the infrastructure uses a remote backend and/or workspaces — that determines what DevOps may safely touch later
 - **Existing docs** — README, wikis, comments worth trusting (verify against code; code wins)
 
-Also run each component's build and test commands **from its own directory**, so the architecture doc records commands that are **verified to work**. Record the *exact* installer each component uses — `npm ci` and `npm install` are not interchangeable, and substituting one can rewrite a lock file in a live repository.
+Also run each component's build and test commands **from its own directory**, so the architecture doc records commands that are **verified to work**. Record the *exact* installer each component uses — `npm ci` and `npm install` are not interchangeable, and substituting one can rewrite a lock file in a live repository. With the `integration-gate` switch on, where the component has a typecheck/lint command that writes nothing and a way to run only the tests related to given files, try them too and record them as `Check:` and `Test (focused):` (with `<files>` where the paths go) — only if they run; otherwise leave those lines out (the Developer then falls back to `Build`). Commands are recorded relative to the component's directory, never with a `cd <path>` prefix.
 
 Note the current commit **per component repository**, guarding each one:
 
