@@ -192,3 +192,26 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfileRenderTests(unittest.TestCase):
+    def test_default_profile_line_renders_identically(self):
+        lines = fixture_lines("agent-workflow.modern.log")
+        # The fixture holds several runs and the latest start wins: a change request.
+        last = max(i for i, line in enumerate(lines) if "Change request started" in line)
+        with_line = lines[:last + 1] + ["[2026-09-21 11:00:01] PIPELINE | Agent: orchestrator | Profile default | Order: kickoff design develop review audit test sprint\n"] + lines[last + 1:]
+        now = ts("2026-09-21 11:07:00")
+        for width, height in ((40, 20), (60, 40), (120, 50)):
+            a = pd.render(pd.parse_log(lines, "maxPlanck", now=now), width, height, color=False)
+            b = pd.render(pd.parse_log(with_line, "maxPlanck", now=now), width, height, color=False)
+            self.assertEqual(a, b)
+
+    def test_nacho_profile_shows_its_name_and_the_longer_phases(self):
+        run = pd.parse_log(fixture_lines("agent-workflow.profile.log"), "maxPlanck", now=ts("2026-10-30 09:37:00"))
+        frame = "\n".join(pd.render(run, 60, 40, color=False))
+        self.assertIn("profile nacho", frame)
+        self.assertIn("design-review", frame)
+        self.assertIn("plan-review", frame)
+        self.assertIn("gate", frame)
+        for line in frame.splitlines():
+            self.assertLessEqual(len(line), 60)
