@@ -42,6 +42,7 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 | Plan Review | Plan review reports per story (profile switch `plan-review`; `—` when off) | ✅/❌/— | docs/sprints/sprint-NN/plan-reviews/ |
 | Develop | Source Code | ✅/❌ | <component paths per the ## Components table in docs/architecture.md> |
 | Review | Review Reports | ✅/❌ | docs/sprints/sprint-NN/reviews/ |
+| Gate | Integration gate (profile switch `integration-gate`; `—` when off) | ✅/❌/— | docs/sprints/sprint-NN/integration-gate.md |
 | Security | Security Report | ✅/❌ | docs/sprints/sprint-NN/security-report.md |
 | DevOps | Terraform + CI/CD + Deployment Doc | ✅/❌ | <infra component path>, <per-component CI workflows>, docs/devops/ |
 | Test | Test Reports | ✅/❌ | docs/sprints/sprint-NN/test-plans/ |
@@ -64,7 +65,7 @@ Determine the current sprint number from `docs/sprints/.current-sprint` (create 
 <What should be done next and why>
 
 ## Blockers
-<Any issues preventing progress. MUST include every unresolved failure verdict from this sprint: UNAVAILABLE design reviews (the design was not reviewed), CHANGES PROPOSED design reviews with proposals the Architect has not ruled on, UNAVAILABLE or CHANGES PROPOSED plan reviews with proposals the Tech Lead has not ruled on, NEEDS CHANGES reviews, CRITICAL FINDINGS security verdicts, BLOCKED devops verdicts, FAIL test results — each with a named next step. Never close a sprint by omitting a known failure.>
+<Any issues preventing progress. MUST include every unresolved failure verdict from this sprint: UNAVAILABLE design reviews (the design was not reviewed), CHANGES PROPOSED design reviews with proposals the Architect has not ruled on, UNAVAILABLE or CHANGES PROPOSED plan reviews with proposals the Tech Lead has not ruled on, NEEDS CHANGES reviews, FAIL integration gates, CRITICAL FINDINGS security verdicts, BLOCKED devops verdicts, FAIL test results — each with a named next step. Never close a sprint by omitting a known failure.>
 
 ## Retrospective Notes
 <What went well, what could improve>
