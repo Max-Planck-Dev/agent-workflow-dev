@@ -7,14 +7,23 @@ computed here rather than read out of an agent's prose: the round number, the
 stable proposal IDs, which proposals the author has not ruled on yet, and the
 verdict.
 
+    python3 review_rounds.py run    --kind design [--root DIR] [--timeout SECONDS]
     python3 review_rounds.py brief  --kind design [--root DIR]
     python3 review_rounds.py file   --kind design --round N [--reason TEXT] < answer.json
     python3 review_rounds.py file   --kind design --unavailable --reason TEXT
     python3 review_rounds.py open   --kind design
     python3 review_rounds.py status --kind design
 
-`brief` prints the review criteria, the documents to read and the JSON schema
-of the answer. `file` validates the reviewer's JSON answer (stdin) and appends
+`run` asks an external reviewer — the OpenAI Codex CLI — for the review and
+files the round, but only when the project's `codex` switch is on (resolved
+through the config helper installed next to this script; off when the helper
+or the config is absent). With the switch off Codex is never invoked, and
+with it on Codex works on a temporary copy of the review documents only,
+never the project tree, in its read-only sandbox, and must answer as JSON
+matching the schema. When Codex cannot review (switch off, not installed,
+not logged in, timeout, unusable answer) nothing is written and exit status
+3 says to use the fallback reviewer. `brief` prints the review criteria, the
+documents to read and the JSON schema of the answer for that reviewer. `file` validates the reviewer's JSON answer (stdin) and appends
 a `## Round N` section to the sprint's report; `--unavailable` files a round
 no reviewer could complete. `open` prints the IDs the author has not ruled on,
 one per line (nothing when none). `status` prints the state as JSON. Standard
@@ -26,20 +35,28 @@ disposition is ACCEPTED, PARTIAL or REJECTED. The verdict is CHANGES PROPOSED
 while anything is open, APPROVED when nothing is open and the latest round
 was reviewed, UNAVAILABLE when nothing is open and nobody could review it.
 
-Exit codes: 0 done, 2 a precondition failed, 4 the answer was rejected.
+Exit codes: 0 done, 2 a precondition failed, 3 the external reviewer could
+not review (use the fallback), 4 the answer was rejected.
 """
 
 import argparse
+import importlib.util
 import json
 import os
 import re
+import shutil
+import signal
+import subprocess
 import sys
+import tempfile
 import time
 from typing import Dict, List, Optional, Tuple
 
 # Rewritten to the chosen prefix by setup.sh, like every other workflow file.
 PREFIX = "maxPlanck"
 
+CODEX_TIMEOUT_S = 570  # under the 10-minute ceiling of the calling Bash tool
+VERSION_TIMEOUT_S = 10
 MAX_ANSWER_BYTES = 256 * 1024
 MAX_PROPOSALS = 30
 MAX_CELL_CHARS = 4000
@@ -48,6 +65,7 @@ DISPOSITIONS = ("ACCEPTED", "PARTIAL", "REJECTED")
 PROPOSAL_FIELDS = ("title", "severity", "section", "problem", "proposal")
 
 EXIT_PRECONDITION = 2
+EXIT_FALLBACK = 3
 EXIT_REJECTED = 4
 
 SPRINT_RE = re.compile(r"^\d{2,3}$")
@@ -133,7 +151,7 @@ Answer with one JSON object and nothing else, matching this schema exactly (no e
 
 {schema}
 
-File it with:  file --kind {kind} --round {round}
+File it with:  file --kind {kind} --round {round} [--reason '<why the external reviewer did not review>']
 """
 
 
@@ -245,6 +263,104 @@ def review_docs(root: str, sprint: str, kind: dict) -> List[str]:
     if os.path.isfile(earlier):
         found.append(os.path.relpath(earlier, root))
     return found
+
+
+# ── External reviewer ────────────────────────────────────
+
+
+def config_helper():
+    """The workflow config helper installed next to this script (or the source
+    repo's), loaded by path so an install with any prefix finds it."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    for name in (f"{PREFIX}-config.py", "workflow_config.py"):
+        path = os.path.join(here, name)
+        if os.path.isfile(path):
+            spec = importlib.util.spec_from_file_location("workflow_config", path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+    return None
+
+
+def external_reviewer_allowed(root: str) -> Tuple[bool, str]:
+    """(allowed, reason) — the `codex` switch of the project's profile, resolved in code."""
+    helper = config_helper()
+    if helper is None:
+        return False, "the codex switch is off (no config helper installed)"
+    try:
+        config = helper.load_config(root)
+    except Exception as exc:  # a broken config never turns an external reviewer on
+        return False, f"the codex switch could not be read ({plain(str(exc))})"
+    if not helper.features(config).get("codex"):
+        return False, f"the codex switch is off in profile {helper.profile_of(config)}"
+    return True, ""
+
+
+def inside(path: str, roots: List[str]) -> bool:
+    real = os.path.realpath(path)
+    return any(real == r or real.startswith(r + os.sep) for r in roots)
+
+
+def stage_docs(root: str, sprint: str, kind: dict, stage: str) -> List[str]:
+    """Copy the review documents — and nothing else of the project — for the
+    external reviewer. A symlink is followed only when it resolves inside the
+    project root; one that leaves it is skipped. Returns the staged paths."""
+    staged: List[str] = []
+    real_root = os.path.realpath(root)
+    for rel in review_docs(root, sprint, kind):
+        src = os.path.join(root, rel)
+        if os.path.islink(src) and not inside(src, [real_root]):
+            continue
+        if not os.path.isfile(src):
+            continue
+        dst = os.path.join(stage, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copyfile(src, dst)
+        staged.append(rel)
+    return staged
+
+
+def codex_version(codex: str) -> str:
+    try:
+        out = subprocess.run([codex, "--version"], capture_output=True, text=True, timeout=VERSION_TIMEOUT_S, check=False)
+        return clean(out.stdout) or "version unknown"
+    except Exception:
+        return "version unknown"
+
+
+def ask_codex(codex: str, stage: str, work: str, prompt: str, timeout: int) -> Tuple[Optional[dict], str]:
+    """Return (answer, "") on success or (None, one-line reason) on failure."""
+    schema, answer = os.path.join(work, "schema.json"), os.path.join(work, "answer.json")
+    with open(schema, "w", encoding="utf-8") as fh:
+        json.dump(SCHEMA, fh)
+    cmd = [codex, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never",
+           "-C", stage, "--output-schema", schema, "-o", answer, "-"]
+    try:
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, errors="replace", start_new_session=True)
+    except OSError:
+        return None, "Codex could not be started"
+    try:
+        transcript, _ = proc.communicate(prompt, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+        proc.communicate()
+        return None, f"Codex timed out after {timeout}s"
+    if proc.returncode != 0:
+        hint = " — not logged in? run codex login" if re.search(r"401|unauthorized|not logged in|login", transcript, re.I) else ""
+        return None, f"Codex exited with status {proc.returncode}{hint}"
+    try:
+        if os.path.getsize(answer) > MAX_ANSWER_BYTES:
+            return None, "the answer from Codex was larger than the accepted size"
+        with open(answer, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None, "the answer from Codex was missing or not valid JSON"
+    problem = invalid(data)
+    return (None, f"the answer from Codex did not match the expected format ({problem})") if problem else (data, "")
 
 
 # ── Answer ───────────────────────────────────────────────
@@ -379,6 +495,32 @@ def file_round(root: str, ctx: dict, reviewer: str, answer: Optional[dict], reas
     return 0
 
 
+def fallback(reason: str) -> int:
+    print(f"FALLBACK={plain(reason)}")
+    return EXIT_FALLBACK
+
+
+def cmd_run(root: str, kind_name: str, timeout: int) -> int:
+    ctx = load(root, kind_name)
+    allowed, why = external_reviewer_allowed(root)
+    if not allowed:
+        return fallback(why)
+    codex = shutil.which("codex")
+    if not codex:
+        return fallback("Codex CLI not installed")
+    work = tempfile.mkdtemp(prefix="review-")
+    try:
+        stage = os.path.join(work, "stage")
+        os.makedirs(stage)
+        stage_docs(root, ctx["sprint"], ctx["kind"], stage)
+        answer, reason = ask_codex(codex, stage, work, brief(ctx), timeout)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    if answer is None:
+        return fallback(reason)
+    return file_round(root, ctx, f"OpenAI Codex ({codex_version(codex)}, read-only sandbox)", answer, "")
+
+
 def cmd_brief(root: str, kind_name: str) -> int:
     ctx = load(root, kind_name)
     documents = "\n".join(f"- {path}" for path in review_docs(root, ctx["sprint"], ctx["kind"]))
@@ -439,15 +581,18 @@ def cmd_open(root: str, kind_name: str) -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="File, brief or inspect the rounds of a review phase.")
-    ap.add_argument("command", choices=("brief", "file", "open", "status"))
+    ap.add_argument("command", choices=("run", "brief", "file", "open", "status"))
     ap.add_argument("--kind", required=True, choices=tuple(KINDS), help="which review")
     ap.add_argument("--root", default=os.environ.get("CLAUDE_PROJECT_DIR") or ".", help="project root")
+    ap.add_argument("--timeout", type=int, default=CODEX_TIMEOUT_S, help="run: seconds to wait for the external reviewer")
     ap.add_argument("--round", type=int, help="file: the round the answer was written for (brief prints it)")
     ap.add_argument("--reason", default="", help="file: why the fallback reviewed (or why the round is unavailable)")
     ap.add_argument("--unavailable", action="store_true", help="file: record that no reviewer could complete this round")
     args = ap.parse_args(argv)
     root = os.path.abspath(args.root)
     try:
+        if args.command == "run":
+            return cmd_run(root, args.kind, args.timeout)
         if args.command == "brief":
             return cmd_brief(root, args.kind)
         if args.command == "file":
