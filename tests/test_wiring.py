@@ -176,3 +176,28 @@ class PlanWiringTests(unittest.TestCase):
         agent = self.read(".claude/agents/maxPlanck-tech-lead.md")
         self.assertIn("MUST NOT write source code", agent)
         self.assertIn("plans/story-NNN-plan.md", agent)
+
+
+class PlanReviewWiringTests(unittest.TestCase):
+    """The plan-review switch: a Plan Reviewer, a skill, and the Tech Lead's log."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_skill_is_bound_and_uses_the_plan_kind(self):
+        skill = self.read(".claude/skills/maxPlanck-plan-review/SKILL.md")
+        self.assertIn("agent: maxPlanck-plan-reviewer", skill)
+        self.assertIn("--kind plan --story", skill)
+
+    def test_tech_lead_rules_in_the_log_the_helper_reads(self):
+        from review_rounds import KINDS
+        agent = self.read(".claude/agents/maxPlanck-tech-lead.md")
+        self.assertIn(KINDS["plan"]["log_heading"], agent)
+        self.assertIn("open --kind plan", agent)
+
+    def test_switch_requires_plan_and_orchestrators_gate_on_it(self):
+        self.assertEqual(wc.REQUIRES["plan-review"], ("plan",))
+        for rel in (".claude/skills/maxPlanck-feeling-lucky/SKILL.md", ".claude/skills/maxPlanck-change/SKILL.md"):
+            self.assertIn("plan-review", self.read(rel), rel)
+            self.assertIn("recheck", self.read(rel).lower(), rel)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Review rounds for the agent workflow: filing, stable IDs, open proposals, verdict.
 
-A review phase (today: the design review of docs/architecture.md) files its
-rounds through this script, so that everything pipeline routing depends on is
+A review phase — the design review of docs/architecture.md, or the plan
+review of one story's development plan — files its rounds through this script, so that everything pipeline routing depends on is
 computed here rather than read out of an agent's prose: the round number, the
 stable proposal IDs, which proposals the author has not ruled on yet, and the
 verdict.
@@ -13,6 +13,14 @@ verdict.
     python3 review_rounds.py file   --kind design --unavailable --reason TEXT
     python3 review_rounds.py open   --kind design
     python3 review_rounds.py status --kind design
+
+The plan review takes the same commands with `--kind plan --story story-NNN`:
+its report, IDs (`PR-NN-SSS-n`) and log live per story, and the staged copy
+adds the sprint's plan index, the story's plan and a paths-only inventory of
+the in-scope source files (`code-inventory.txt`: names, never contents). Its
+`file` and `status` also say whether a re-check is due (`RECHECK=yes|no`):
+only after a reviewed round that raised a CRITICAL or HIGH proposal, and
+never past 2 rounds.
 
 `run` asks an external reviewer — the OpenAI Codex CLI — for the review and
 files the round, but only when the project's `codex` switch is on (resolved
@@ -56,6 +64,14 @@ from typing import Dict, List, Optional, Tuple
 PREFIX = "maxPlanck"
 
 CODEX_TIMEOUT_S = 570  # under the 10-minute ceiling of the calling Bash tool
+GIT_TIMEOUT_S = 20
+MAX_ROUNDS = 2  # a plan is re-reviewed once at most
+RECHECK_SEVERITIES = ("CRITICAL", "HIGH")
+MAX_INVENTORY_FILES = 5000
+INVENTORY = "code-inventory.txt"
+SKIP_DIRS = {".git", "node_modules", "dist", "build", "out", "target", "vendor", "coverage", "tmp",
+             "__pycache__", ".venv", "venv", ".terraform", ".next", ".cache", ".idea", ".vscode", ".pytest_cache"}
+ROOT_ONLY_SKIP = {"docs", "logs", ".claude"}
 VERSION_TIMEOUT_S = 10
 MAX_ANSWER_BYTES = 256 * 1024
 MAX_PROPOSALS = 30
@@ -69,6 +85,7 @@ EXIT_FALLBACK = 3
 EXIT_REJECTED = 4
 
 SPRINT_RE = re.compile(r"^\d{2,3}$")
+STORY_RE = re.compile(r"^story-(\d{3,})$")
 ROUND_RE = re.compile(r"^## Round (\d+) — \S+( — unavailable)?\s*$", re.M)
 CELL_SPLIT_RE = re.compile(r"(?<!\\)\|")
 CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
@@ -76,8 +93,10 @@ CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]+")
 # characters no shell gives a meaning to.
 UNSAFE_REASON_RE = re.compile(r"[^A-Za-z0-9 .,:;()/_=+@%—-]+")
 
+# {sprint} and {story} are filled in by load(); `per_story` kinds need --story.
 KINDS = {
     "design": {
+        "per_story": False,
         "title": "Design Review",
         "report": "design-review.md",
         "id_prefix": "DR",
@@ -85,6 +104,21 @@ KINDS = {
         "subject_missing": "docs/architecture.md does not exist — run the design phase first",
         "log_heading": "## Design Review Log",
         "documents": ("architecture.md", "prd.md", "stories", "ux"),
+        "extra_docs": (),
+        "inventory": False,
+    },
+    "plan": {
+        "per_story": True,
+        "title": "Plan Review",
+        "report": os.path.join("plan-reviews", "{story}-plan-review.md"),
+        "id_prefix": "PR",
+        "subject": os.path.join("docs", "sprints", "sprint-{sprint}", "plans", "{story}-plan.md"),
+        "subject_missing": "docs/sprints/sprint-{sprint}/plans/{story}-plan.md does not exist — run the plan phase for {story} first",
+        "log_heading": "## Plan Review Log",
+        "documents": ("architecture.md", "prd.md", "stories", "ux"),
+        "extra_docs": (os.path.join("docs", "sprints", "sprint-{sprint}", "dev-plan.md"),
+                       os.path.join("docs", "sprints", "sprint-{sprint}", "plans", "{story}-plan.md")),
+        "inventory": True,
     },
 }
 
@@ -133,11 +167,38 @@ This is review round {round} of sprint {sprint}.
 {rereview}
 Propose only changes to the design document. Each proposal must be concrete enough that the architect can apply it or reject it without asking you anything. "section" is the heading in docs/architecture.md that the proposal changes. If the design needs no changes, return an empty proposals list.
 """,
+    "plan": """You are a senior engineer reviewing a tech lead's development plan for one user story before a developer starts building it. Work read-only: do not create, modify, or delete any file.
+
+Everything you need is in these documents:
+- docs/sprints/sprint-{sprint}/plans/{story}-plan.md — the plan under review: how {story} will be built
+- docs/sprints/sprint-{sprint}/dev-plan.md — the sprint's plan index: the order the stories are built in, scaffolding, what is out of scope (if it exists)
+- docs/architecture.md — the approved design the plan must implement; the plan may not depart from it
+- docs/prd.md, docs/stories/, docs/ux/ — the requirements and specs; docs/stories/{story}.md is the story this plan covers
+- code-inventory.txt — the paths of the source files that exist today in the in-scope components (paths only, no contents)
+- docs/sprints/sprint-{sprint}/plan-reviews/{story}-plan-review.md — earlier review rounds of this plan, if the file exists
+
+Review these files only; do not look for the rest of the project, and never read anything under the architecture doc's `### Excluded Paths`.
+
+Review the plan for:
+1. Coverage — every acceptance criterion of {story} maps to at least one task; nothing the story needs is missing without a stated reason.
+2. Fidelity to the design — tasks use the data models, API contracts, folder structure, stacks and commands of docs/architecture.md, and nothing that is not in it.
+3. Order — components and layers are built in dependency order, so each task can be verified when it is done; the plan respects the story order in the plan index.
+4. Concreteness — each task names its files with a verb (create/modify); "modify" tasks name files that exist in the inventory, "create" tasks put files where the architecture's folder structure says.
+5. Verification — the build/test commands are the right ones for each component touched, run from that component's directory.
+6. Risk — missing failure and edge-case handling, work that is hidden or underestimated, and open questions the plan should raise for the architect.
+
+This is review round {round} of the plan for {story} (sprint {sprint}).
+{rereview}
+Propose only changes to the plan document. Each proposal must be concrete enough that the tech lead can apply it or reject it without asking you anything. "section" is the heading in the plan that the proposal changes. If the plan needs no changes, return an empty proposals list.
+""",
 }
 
 REREVIEWS = {
     "design": """
 Earlier proposals and the architect's decision on each are in the "## Design Review Log" table of docs/architecture.md; its last column says what changed. Do not repeat a proposal that is ACCEPTED, PARTIAL, or REJECTED there, and do not repeat one that is still awaiting a decision. Raise a new proposal only for (a) a problem in something that log says was changed, or (b) a rejected proposal whose stated rationale is wrong AND whose severity is CRITICAL or HIGH — name the proposal ID you are disputing in the title.
+""",
+    "plan": """
+Earlier proposals and the tech lead's decision on each are in the "## Plan Review Log" table at the end of the plan; its last column says what changed. Do not repeat a proposal that is ACCEPTED, PARTIAL, or REJECTED there, and do not repeat one that is still awaiting a decision. Raise a new proposal only for (a) a problem in something that log says was changed, or (b) a rejected proposal whose stated rationale is wrong AND whose severity is CRITICAL or HIGH — name the proposal ID you are disputing in the title.
 """,
 }
 
@@ -151,8 +212,15 @@ Answer with one JSON object and nothing else, matching this schema exactly (no e
 
 {schema}
 
-File it with:  file --kind {kind} --round {round} [--reason '<why the external reviewer did not review>']
+File it with:  file --kind {kind}{story_flag} --round {round} [--reason '<why the external reviewer did not review>']
 """
+
+INVENTORY_HEADER = (
+    "# Source files that exist today in the in-scope components (paths only).",
+    "# Not listed: files git ignores, dependency/build directories (node_modules, dist, build, target, vendor, ...),",
+    "# anything under the architecture doc's Excluded Paths. A file absent here may still be one of those —",
+    "# say so in a proposal only when the plan's task could not mean such a file.",
+)
 
 
 class Precondition(Exception):
@@ -166,7 +234,7 @@ def cells(row: str) -> List[str]:
     return [c.strip() for c in CELL_SPLIT_RE.split(row.strip())[1:-1]]
 
 
-def decisions(subject: str, heading: str, id_prefix: str) -> Dict[str, str]:
+def decisions(subject: str, heading: str, stem: str) -> Dict[str, str]:
     """Proposal ID → disposition, read only from the author's review log table."""
     found: Dict[str, str] = {}
     inside = False
@@ -177,7 +245,7 @@ def decisions(subject: str, heading: str, id_prefix: str) -> Dict[str, str]:
         if not inside or not line.lstrip().startswith("|"):
             continue
         row = cells(line)
-        if len(row) >= 3 and re.fullmatch(rf"{id_prefix}-\d+-\d+", row[0]) and row[2].upper() in DISPOSITIONS:
+        if len(row) >= 3 and re.fullmatch(rf"{re.escape(stem)}-\d+", row[0]) and row[2].upper() in DISPOSITIONS:
             found.setdefault(row[0], row[2].upper())
     return found
 
@@ -206,8 +274,21 @@ def verdict(open_count: int, latest_ok: bool) -> str:
     return "APPROVED" if latest_ok else "UNAVAILABLE"
 
 
+def latest_severities(report: str, stem: str) -> List[str]:
+    """Severities of the proposals filed in the last round of the report."""
+    starts = [m.start() for m in ROUND_RE.finditer(report)]
+    return [severity for _, severity, _ in filed(report[starts[-1]:], stem)] if starts else []
+
+
+def recheck(history: List[bool], severities: List[str]) -> bool:
+    """Whether the pipeline should review again once the author has ruled:
+    only after a reviewed round that raised a CRITICAL or HIGH proposal, and
+    never past MAX_ROUNDS rounds in total (an unavailable round counts)."""
+    return bool(history) and history[-1] and len(history) < MAX_ROUNDS and any(s in RECHECK_SEVERITIES for s in severities)
+
+
 def state(report: str, subject: str, kind: dict, stem: str) -> dict:
-    decided = decisions(subject, kind["log_heading"], kind["id_prefix"])
+    decided = decisions(subject, kind["log_heading"], stem)
     proposals = filed(report, stem)
     history = rounds(report)
     still_open = [p for p in proposals if p[0] not in decided]
@@ -219,6 +300,7 @@ def state(report: str, subject: str, kind: dict, stem: str) -> dict:
         "open": [p[0] for p in still_open],
         "open_detail": still_open,
         "verdict": None if latest_ok is None else verdict(len(still_open), latest_ok),
+        "recheck": recheck(history, latest_severities(report, stem)),
     }
 
 
@@ -245,11 +327,11 @@ def current_sprint(root: str) -> str:
     return sprint
 
 
-def report_path(root: str, sprint: str, kind: dict) -> str:
-    return os.path.join(root, "docs", "sprints", f"sprint-{sprint}", kind["report"])
+def report_path(root: str, sprint: str, kind: dict, story: str = "") -> str:
+    return os.path.join(root, "docs", "sprints", f"sprint-{sprint}", kind["report"].format(story=story))
 
 
-def review_docs(root: str, sprint: str, kind: dict) -> List[str]:
+def review_docs(root: str, sprint: str, kind: dict, story: str = "") -> List[str]:
     """Project-relative paths of every file the reviewer reads, in a stable order."""
     found: List[str] = []
     for name in kind["documents"]:
@@ -259,10 +341,129 @@ def review_docs(root: str, sprint: str, kind: dict) -> List[str]:
         elif os.path.isdir(src):
             for base, _, files in sorted(os.walk(src)):
                 found += [os.path.relpath(os.path.join(base, f), root) for f in sorted(files)]
-    earlier = report_path(root, sprint, kind)
+    for rel in kind["extra_docs"]:
+        rel = rel.format(sprint=sprint, story=story)
+        if os.path.isfile(os.path.join(root, rel)):
+            found.append(rel)
+    earlier = report_path(root, sprint, kind, story)
     if os.path.isfile(earlier):
         found.append(os.path.relpath(earlier, root))
     return found
+
+
+# ── Code inventory (paths only) ──────────────────────────
+
+
+def unquote(text: str) -> str:
+    return text.strip().strip("`").strip()
+
+
+def is_heading(line: str, heading: str, level: str) -> bool:
+    return line == f"{level} {heading}" or line.startswith(f"{level} {heading} ")
+
+
+def table_rows(doc: str, heading: str, level: str) -> List[List[str]]:
+    rows, inside = [], False
+    for line in doc.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            if inside:
+                break
+            inside = is_heading(stripped, heading, level)
+            continue
+        if not inside or not stripped.startswith("|"):
+            continue
+        row = cells(stripped)
+        if not row or set(row[0]) <= {"-", ":", " "}:
+            continue
+        rows.append(row)
+    return rows[1:] if rows else []
+
+
+def components(architecture: str) -> List[Tuple[str, str]]:
+    found = [(unquote(r[0]), unquote(r[1])) for r in table_rows(architecture, "Components", "##") if len(r) >= 2 and unquote(r[0]) and unquote(r[1])]
+    if found:
+        return found
+    if any(is_heading(l.strip(), "Components", "##") for l in architecture.splitlines()):
+        raise Precondition("docs/architecture.md has a ## Components section but no component rows could be read from it")
+    return [("app", ".")]
+
+
+def excluded_paths(architecture: str) -> List[str]:
+    return [unquote(r[0]) for r in table_rows(architecture, "Excluded Paths", "###") if r and unquote(r[0]) not in ("", "...")]
+
+
+def under(path: str, ancestor: str) -> bool:
+    path, ancestor = os.path.normcase(path), os.path.normcase(ancestor)
+    return path == ancestor or path.startswith(ancestor.rstrip(os.sep) + os.sep)
+
+
+def git_visible(base: str) -> Optional[set]:
+    """Files git would show for this directory, relative to it — None when it
+    is not a repository or git is unavailable. What a project ignores is not listed."""
+    git = shutil.which("git")
+    if not git:
+        return None
+    try:
+        inside_tree = subprocess.run([git, "-C", base, "rev-parse", "--is-inside-work-tree"], capture_output=True, text=True, timeout=GIT_TIMEOUT_S, check=False)
+        if inside_tree.stdout.strip() != "true":
+            return None
+        listed = subprocess.run([git, "-C", base, "ls-files", "-co", "--exclude-standard", "-z"], capture_output=True, text=True, timeout=GIT_TIMEOUT_S, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {os.path.normpath(p) for p in listed.stdout.split("\0") if p} if listed.returncode == 0 else None
+
+
+def component_label(root: str, index: int, cid: str, path: str) -> str:
+    """How a component's files are prefixed in the inventory: their real
+    project-relative path, or external/<n>-<ID> for one declared outside the
+    root (the ID is doc content, so it is reduced to a plain file name)."""
+    absolute = os.path.normpath(os.path.join(root, path))
+    if absolute == os.path.normpath(root):
+        return "."
+    rel = os.path.relpath(absolute, root)
+    if not rel.startswith("..") and not os.path.isabs(rel):
+        return rel
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", cid).strip("._-") or "component"
+    return os.path.join("external", f"{index}-{safe}")
+
+
+def inventory(root: str, architecture: str) -> List[str]:
+    """Project-relative paths of the source files in the in-scope components
+    (names only, never contents). A `# truncated` line closes a list that hit
+    the cap, so a missing file is never mistaken for a nonexistent one."""
+    excluded = [os.path.normpath(os.path.join(root, p)) for p in excluded_paths(architecture)]
+    out: List[str] = []
+    seen = set()
+    for index, (cid, path) in enumerate(components(architecture), 1):
+        base = os.path.normpath(os.path.join(root, path))
+        for ex in excluded:
+            if under(base, ex):
+                raise Precondition(f"component {cid} ({path}) lies under excluded path {os.path.relpath(ex, root)} — fix the Components table")
+        if not os.path.isdir(base) or os.path.islink(base):
+            continue
+        at_root = base == os.path.normpath(root)
+        label = component_label(root, index, cid, path)
+        visible = git_visible(base)
+        for current, dirs, files in os.walk(base):
+            dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS
+                             and not any(under(os.path.join(current, d), ex) for ex in excluded)
+                             and not (at_root and current == base and d in ROOT_ONLY_SKIP))
+            for name in sorted(files):
+                src = os.path.join(current, name)
+                rel = os.path.relpath(src, base)
+                if src in seen or os.path.islink(src) or (visible is not None and os.path.normpath(rel) not in visible):
+                    continue
+                seen.add(src)
+                out.append(rel if label == "." else os.path.join(label, rel))
+                if len(out) >= MAX_INVENTORY_FILES:
+                    out.append(f"# truncated at {MAX_INVENTORY_FILES} files — later files and components are not listed")
+                    return out
+    return out
+
+
+def inventory_text(root: str, architecture: str) -> str:
+    return "\n".join(INVENTORY_HEADER + tuple(inventory(root, architecture))) + "\n"
 
 
 # ── External reviewer ────────────────────────────────────
@@ -301,13 +502,18 @@ def inside(path: str, roots: List[str]) -> bool:
     return any(real == r or real.startswith(r + os.sep) for r in roots)
 
 
-def stage_docs(root: str, sprint: str, kind: dict, stage: str) -> List[str]:
+def stage_docs(root: str, ctx: dict, stage: str) -> List[str]:
     """Copy the review documents — and nothing else of the project — for the
     external reviewer. A symlink is followed only when it resolves inside the
     project root; one that leaves it is skipped. Returns the staged paths."""
     staged: List[str] = []
     real_root = os.path.realpath(root)
-    for rel in review_docs(root, sprint, kind):
+    sprint, kind, story = ctx["sprint"], ctx["kind"], ctx["story"]
+    if kind["inventory"]:
+        with open(os.path.join(stage, INVENTORY), "w", encoding="utf-8") as fh:
+            fh.write(inventory_text(root, read(os.path.join(root, "docs", "architecture.md"))))
+        staged.append(INVENTORY)
+    for rel in review_docs(root, sprint, kind, story):
         src = os.path.join(root, rel)
         if os.path.islink(src) and not inside(src, [real_root]):
             continue
@@ -429,17 +635,19 @@ def round_section(number: int, date: str, reviewer: str, answer: Optional[dict],
     return "\n".join(lines) + "\n"
 
 
-def render(kind: dict, sprint: str, date: str, reviewer: str, st: dict, body: str) -> str:
+def render(ctx: dict, date: str, reviewer: str, st: dict, body: str) -> str:
+    kind, sprint = ctx["kind"], ctx["sprint"]
     head = [
-        f"# {kind['title']} — Sprint {sprint}", "",
+        f"# {kind['title']} — Sprint {sprint}" + (f" — {ctx['story']}" if ctx["story"] else ""), "",
         f"**Sprint:** {sprint}",
+    ] + ([f"**Story:** {ctx['story']}"] if ctx["story"] else []) + [
         f"**Date:** {date}",
         f"**Reviewer:** {reviewer}",
         f"**Rounds:** {st['rounds']}",
         f"**Latest round:** {st['latest']}",
         f"**Verdict:** {st['verdict']}", "",
         "## Open Proposals", "",
-        f"Proposals with no decision in the `{kind['log_heading']}` of `{kind['subject'].replace(os.sep, '/')}` when this round was filed:", "",
+        f"Proposals with no decision in the `{kind['log_heading']}` of `{ctx['subject_rel'].replace(os.sep, '/')}` when this round was filed:", "",
     ]
     head += [f"- {pid} — {sev} — {title}" for pid, sev, title in st["open_detail"]] or ["None."]
     return "\n".join(head) + "\n\n" + body.rstrip("\n") + "\n"
@@ -453,24 +661,41 @@ def earlier_rounds(report: str) -> str:
 # ── Commands ─────────────────────────────────────────────
 
 
-def load(root: str, kind_name: str) -> dict:
+def resolve_story(root: str, kind: dict, story: str) -> str:
+    if not kind["per_story"]:
+        return ""
+    if not story:
+        raise Precondition(f"--story story-NNN is required for --kind plan")
+    m = STORY_RE.match(story)
+    if not m:
+        raise Precondition(f"{story!r} is not a story id (expected story-NNN)")
+    if not os.path.isfile(os.path.join(root, "docs", "stories", f"{story}.md")):
+        raise Precondition(f"docs/stories/{story}.md does not exist")
+    return story
+
+
+def load(root: str, kind_name: str, story: str = "") -> dict:
     """Everything a command needs to know before touching the report."""
     kind = KINDS[kind_name]
     sprint = current_sprint(root)
-    subject_path = os.path.join(root, kind["subject"])
+    story = resolve_story(root, kind, story)
+    subject_rel = kind["subject"].format(sprint=sprint, story=story)
+    subject_path = os.path.join(root, subject_rel)
     if not os.path.isfile(subject_path):
-        raise Precondition(kind["subject_missing"])
-    path = report_path(root, sprint, kind)
-    stem = f"{kind['id_prefix']}-{sprint}"
+        raise Precondition(kind["subject_missing"].format(sprint=sprint, story=story))
+    path = report_path(root, sprint, kind, story)
+    stem = f"{kind['id_prefix']}-{sprint}" + (f"-{STORY_RE.match(story).group(1)}" if story else "")
     report, subject = read(path), read(subject_path)
     before = state(report, subject, kind, stem)
-    return {"kind": kind, "kind_name": kind_name, "sprint": sprint, "stem": stem, "path": path,
-            "report": report, "subject": subject, "number": before["rounds"] + 1, "next_id": before["next_id"]}
+    return {"kind": kind, "kind_name": kind_name, "sprint": sprint, "story": story, "stem": stem, "path": path,
+            "subject_rel": subject_rel, "report": report, "subject": subject,
+            "number": before["rounds"] + 1, "next_id": before["next_id"]}
 
 
 def brief(ctx: dict) -> str:
     name = ctx["kind_name"]
-    return PROMPTS[name].format(sprint=ctx["sprint"], round=ctx["number"], rereview=REREVIEWS[name] if ctx["number"] > 1 else "")
+    return PROMPTS[name].format(sprint=ctx["sprint"], story=ctx["story"], round=ctx["number"],
+                                rereview=REREVIEWS[name] if ctx["number"] > 1 else "")
 
 
 def file_round(root: str, ctx: dict, reviewer: str, answer: Optional[dict], reason: str) -> int:
@@ -481,14 +706,18 @@ def file_round(root: str, ctx: dict, reviewer: str, answer: Optional[dict], reas
     os.makedirs(os.path.dirname(ctx["path"]), exist_ok=True)
     partial = ctx["path"] + ".tmp"
     with open(partial, "w", encoding="utf-8") as fh:
-        fh.write(render(ctx["kind"], ctx["sprint"], date, reviewer if answer else "none — round unavailable", after, body))
+        fh.write(render(ctx, date, reviewer if answer else "none — round unavailable", after, body))
     os.replace(partial, ctx["path"])
     print(f"VERDICT={after['verdict']}")
+    if ctx["story"]:
+        print(f"STORY={ctx['story']}")
     print(f"ROUND={ctx['number']}")
     print(f"LATEST={after['latest']}")
     print(f"REVIEWER={reviewer if answer else 'none'}")
     print(f"NEW={len(answer['proposals']) if answer else 0}")
     print(f"OPEN={','.join(after['open'])}")
+    if ctx["kind"]["per_story"]:
+        print(f"RECHECK={'yes' if after['recheck'] else 'no'}")
     if answer is None:
         print(f"REASON={plain(reason)}")
     print(f"REPORT={os.path.relpath(ctx['path'], root)}")
@@ -500,8 +729,8 @@ def fallback(reason: str) -> int:
     return EXIT_FALLBACK
 
 
-def cmd_run(root: str, kind_name: str, timeout: int) -> int:
-    ctx = load(root, kind_name)
+def cmd_run(root: str, kind_name: str, story: str, timeout: int) -> int:
+    ctx = load(root, kind_name, story)
     allowed, why = external_reviewer_allowed(root)
     if not allowed:
         return fallback(why)
@@ -512,7 +741,7 @@ def cmd_run(root: str, kind_name: str, timeout: int) -> int:
     try:
         stage = os.path.join(work, "stage")
         os.makedirs(stage)
-        stage_docs(root, ctx["sprint"], ctx["kind"], stage)
+        stage_docs(root, ctx, stage)
         answer, reason = ask_codex(codex, stage, work, brief(ctx), timeout)
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -521,10 +750,13 @@ def cmd_run(root: str, kind_name: str, timeout: int) -> int:
     return file_round(root, ctx, f"OpenAI Codex ({codex_version(codex)}, read-only sandbox)", answer, "")
 
 
-def cmd_brief(root: str, kind_name: str) -> int:
-    ctx = load(root, kind_name)
-    documents = "\n".join(f"- {path}" for path in review_docs(root, ctx["sprint"], ctx["kind"]))
-    print(brief(ctx) + INSTRUCTIONS.format(documents=documents, schema=json.dumps(SCHEMA, indent=2), kind=kind_name, round=ctx["number"]))
+def cmd_brief(root: str, kind_name: str, story: str) -> int:
+    ctx = load(root, kind_name, story)
+    documents = "\n".join(f"- {path}" for path in review_docs(root, ctx["sprint"], ctx["kind"], ctx["story"]))
+    if ctx["kind"]["inventory"]:
+        documents += "\n\n" + INVENTORY + " (the in-scope source files that exist today, paths only):\n" + inventory_text(root, ctx["subject"] and read(os.path.join(root, "docs", "architecture.md"))).rstrip("\n") + "\n- (end of inventory)"
+    print(brief(ctx) + INSTRUCTIONS.format(documents=documents, schema=json.dumps(SCHEMA, indent=2), kind=kind_name,
+                                           story_flag=f" --story {ctx['story']}" if ctx["story"] else "", round=ctx["number"]))
     return 0
 
 
@@ -537,8 +769,8 @@ def reviewer_name(reason: str) -> str:
     return f"Claude (fallback — {reason})" if reason else "Claude"
 
 
-def cmd_file(root: str, kind_name: str, reason: str, unavailable: bool, expected_round: Optional[int]) -> int:
-    ctx = load(root, kind_name)
+def cmd_file(root: str, kind_name: str, story: str, reason: str, unavailable: bool, expected_round: Optional[int]) -> int:
+    ctx = load(root, kind_name, story)
     reason = plain(reason)
     if unavailable:
         if not re.search(r"[A-Za-z0-9]", reason):
@@ -559,21 +791,29 @@ def cmd_file(root: str, kind_name: str, reason: str, unavailable: bool, expected
     return file_round(root, ctx, reviewer_name(reason), answer, "")
 
 
-def cmd_status(root: str, kind_name: str) -> int:
+def peek(root: str, kind_name: str, story: str) -> Tuple[dict, str, str]:
+    """State without requiring the subject to exist (nothing filed yet is a valid state)."""
     kind = KINDS[kind_name]
     sprint = current_sprint(root)
-    st = state(read(report_path(root, sprint, kind)), read(os.path.join(root, kind["subject"])), kind, f"{kind['id_prefix']}-{sprint}")
+    story = resolve_story(root, kind, story)
+    stem = f"{kind['id_prefix']}-{sprint}" + (f"-{STORY_RE.match(story).group(1)}" if story else "")
+    subject = read(os.path.join(root, kind["subject"].format(sprint=sprint, story=story)))
+    return state(read(report_path(root, sprint, kind, story)), subject, kind, stem), sprint, story
+
+
+def cmd_status(root: str, kind_name: str, story: str) -> int:
+    st, sprint, story = peek(root, kind_name, story)
     st.pop("open_detail")
     st["sprint"] = sprint
     st["kind"] = kind_name
+    if story:
+        st["story"] = story
     print(json.dumps(st))
     return 0
 
 
-def cmd_open(root: str, kind_name: str) -> int:
-    kind = KINDS[kind_name]
-    sprint = current_sprint(root)
-    st = state(read(report_path(root, sprint, kind)), read(os.path.join(root, kind["subject"])), kind, f"{kind['id_prefix']}-{sprint}")
+def cmd_open(root: str, kind_name: str, story: str) -> int:
+    st, _, _ = peek(root, kind_name, story)
     for pid in st["open"]:
         print(pid)
     return 0
@@ -583,6 +823,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="File, brief or inspect the rounds of a review phase.")
     ap.add_argument("command", choices=("run", "brief", "file", "open", "status"))
     ap.add_argument("--kind", required=True, choices=tuple(KINDS), help="which review")
+    ap.add_argument("--story", default="", help="plan: the story whose plan is reviewed (story-NNN)")
     ap.add_argument("--root", default=os.environ.get("CLAUDE_PROJECT_DIR") or ".", help="project root")
     ap.add_argument("--timeout", type=int, default=CODEX_TIMEOUT_S, help="run: seconds to wait for the external reviewer")
     ap.add_argument("--round", type=int, help="file: the round the answer was written for (brief prints it)")
@@ -592,14 +833,14 @@ def main(argv=None) -> int:
     root = os.path.abspath(args.root)
     try:
         if args.command == "run":
-            return cmd_run(root, args.kind, args.timeout)
+            return cmd_run(root, args.kind, args.story, args.timeout)
         if args.command == "brief":
-            return cmd_brief(root, args.kind)
+            return cmd_brief(root, args.kind, args.story)
         if args.command == "file":
-            return cmd_file(root, args.kind, args.reason, args.unavailable, args.round)
+            return cmd_file(root, args.kind, args.story, args.reason, args.unavailable, args.round)
         if args.command == "open":
-            return cmd_open(root, args.kind)
-        return cmd_status(root, args.kind)
+            return cmd_open(root, args.kind, args.story)
+        return cmd_status(root, args.kind, args.story)
     except Precondition as exc:
         print(f"ERROR={exc}")
         return EXIT_PRECONDITION
