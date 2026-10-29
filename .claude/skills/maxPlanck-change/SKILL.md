@@ -18,15 +18,16 @@ The change description comes from the command arguments or conversation. If ther
 
 Read `docs/sprints/.current-sprint` (create it containing `01` if missing). A change request works **within the current sprint** — it never increments the counter. All artifacts land in `docs/sprints/sprint-<NN>/`.
 
-Log the start:
+Read the profile: `python3 .claude/bin/maxPlanck-config.py features` prints the project's profile, the order a change request follows (`CHANGE_ORDER=`) and one `<switch>=on|off` line per feature; without the helper (a plugin install) the profile is `default` and every switch is off. Keep the switches for the whole run. Log the start, then the profile and the order (the dashboard builds its phase list from that line):
 
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Change request started (sprint <NN>): <short description>" >> logs/agent-workflow.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Profile <name> | Order: <CHANGE_ORDER, space separated>" >> logs/agent-workflow.log
 ```
 
 ## Pipeline
 
-Run these phases in order, logging a `PIPELINE` transition line between each (`Phase <completed> finished → routing to <next> | Reason: <why>`, with `(re-run)` after the phase name on a repeat):
+Run these phases in order, logging a `PIPELINE` transition line between each (`Phase <completed> finished → routing to <next> | Reason: <why>`, with `(re-run)` after the phase name on a repeat). With the `default` profile the steps are exactly the numbered ones below; a profile that turns on optional phases inserts them where `CHANGE_ORDER` puts them, each with its own rule marked by its switch. A switch with no rule in this file yet is read and recorded, and nothing else:
 
 1. **Product Owner** (`maxPlanck-kickoff` context — invoke the skill with the change description): update the affected artifacts, not just the code intent:
    - If the change modifies an existing story → edit that story AND append a `## History` entry (what changed, when, why)

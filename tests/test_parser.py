@@ -328,3 +328,60 @@ class HelperTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProfileLineTests(unittest.TestCase):
+    """The orchestrators log `Profile <name> | Order: …` right after the start line."""
+
+    def test_profile_order_replaces_the_default_order(self):
+        lines = fixture_lines("agent-workflow.profile.log")
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-10-30 09:37:00"))
+        self.assertEqual(run.kind, "feeling-lucky")
+        self.assertEqual(run.profile, "nacho")
+        self.assertEqual(run.order, ["kickoff", "ux", "design", "design-review", "plan", "plan-review",
+                                     "develop", "review", "gate", "audit", "infra", "test", "sprint"])
+        self.assertEqual(run.state, "running")
+        for name in ("design-review", "plan", "plan-review", "gate"):
+            self.assertEqual(run.phases[name].status, "done", name)
+        self.assertEqual(run.phases["audit"].status, "running")
+        self.assertEqual(run.current_session().agent, "maxPlanck-security")
+        self.assertEqual(run.loops, [])
+
+    def test_new_roles_map_to_their_phases(self):
+        for role, phase in (("design-reviewer", "design-review"), ("tech-lead", "plan"), ("plan-reviewer", "plan-review")):
+            self.assertEqual(pd.ROLE_TO_PHASE[role], phase)
+
+    def test_default_profile_line_changes_nothing(self):
+        lines = fixture_lines("agent-workflow.modern.log")
+        # The fixture holds several runs and the latest start wins: a change request.
+        last = max(i for i, line in enumerate(lines) if "Change request started" in line)
+        with_line = lines[:last + 1] + ["[2026-09-21 11:00:01] PIPELINE | Agent: orchestrator | Profile default | Order: kickoff design develop review audit test sprint\n"] + lines[last + 1:]
+        now = ts("2026-09-21 11:07:00")
+        plain, profiled = pd.parse_log(lines, "maxPlanck", now=now), pd.parse_log(with_line, "maxPlanck", now=now)
+        self.assertEqual(profiled.order, plain.order)
+        self.assertEqual({n: p.status for n, p in profiled.phases.items()}, {n: p.status for n, p in plain.phases.items()})
+        self.assertEqual(profiled.profile, "default")
+
+    def test_unknown_phase_names_are_dropped_and_an_empty_order_is_ignored(self):
+        head = "[2026-10-30 09:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 03): x\n"
+        run = pd.parse_log([head, "[2026-10-30 09:00:01] PIPELINE | Agent: orchestrator | Profile odd | Order: kickoff bogus develop\n"], "maxPlanck", now=ts("2026-10-30 09:01:00"))
+        self.assertEqual(run.order, ["kickoff", "develop"])
+        run = pd.parse_log([head, "[2026-10-30 09:00:01] PIPELINE | Agent: orchestrator | Profile odd | Order: bogus\n"], "maxPlanck", now=ts("2026-10-30 09:01:00"))
+        self.assertEqual(run.order, pd.ORDERS["change"])
+        self.assertIsNone(run.profile)
+
+    def test_optional_phases_of_a_change_run_read_as_skipped_at_completion(self):
+        lines = [
+            "[2026-10-30 09:00:00] PIPELINE | Agent: orchestrator | Change request started (sprint 03): x\n",
+            "[2026-10-30 09:00:01] PIPELINE | Agent: orchestrator | Profile nacho | Order: kickoff design design-review plan plan-review develop review gate audit test sprint\n",
+            "[2026-10-30 09:01:00] PIPELINE | Agent: orchestrator | Phase kickoff finished → routing to develop | Reason: not structural\n",
+            "[2026-10-30 09:05:00] PIPELINE | Agent: orchestrator | Phase develop finished → routing to review | Reason: builds\n",
+            "[2026-10-30 09:08:00] PIPELINE | Agent: orchestrator | Phase review finished → routing to test | Reason: APPROVED\n",
+            "[2026-10-30 09:12:00] PIPELINE | Agent: orchestrator | Phase test finished → routing to sprint | Reason: pass\n",
+            "[2026-10-30 09:14:00] PIPELINE | Agent: orchestrator | Change request complete (sprint 03) | Unresolved: 0\n",
+        ]
+        run = pd.parse_log(lines, "maxPlanck", now=ts("2026-10-30 09:15:00"))
+        self.assertEqual(run.state, "complete")
+        for name in ("design", "design-review", "plan", "plan-review", "gate", "audit"):
+            self.assertEqual(run.phases[name].status, "skipped", name)
+        self.assertEqual(run.phases["sprint"].status, "done")

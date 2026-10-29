@@ -14,31 +14,39 @@ This skill deliberately has no `context: fork` / `agent:` binding: it is an **or
 
 0. **Brownfield check** — if the project contains source code at the project root **or in any direct child directory** (a project may be several independently-buildable folders rather than one) but no `docs/prd.md`, stop and recommend `/maxPlanck-adopt` first: the founding docs must describe what exists before the pipeline can judge code against them.
 1. Read `docs/sprints/.current-sprint` (create it containing `01` if missing). If the current sprint folder `docs/sprints/sprint-<NN>/` already contains a `sprint-summary.md`, the prior cycle closed — increment the counter. Call the result `<NN>`; every routing check below refers to `docs/sprints/sprint-<NN>/` only.
-2. Create `docs/sprints/sprint-<NN>/pipeline-state.json` (or resume it if it exists and is unfinished):
+2. **Read the profile** — run `python3 .claude/bin/maxPlanck-config.py features` from the project root. It prints the project's profile, the phase order this run follows (`ORDER=`), and one `<switch>=on|off` line per feature. If the helper does not exist (a plugin install), the profile is `default`, every switch is `off`, and `ORDER` is the default order below. Keep the switches for the whole run: a profile change mid-sprint never alters a pipeline already running.
+3. Create `docs/sprints/sprint-<NN>/pipeline-state.json` (or resume it if it exists and is unfinished):
 
 ```json
 {
   "sprint": "NN",
   "started": "<timestamp>",
+  "profile": "default",
+  "features": { "design-system": false, "design-review": false, "plan": false, "plan-review": false, "story-loop": false, "integration-gate": false, "codex": false },
   "phase_runs": { "kickoff": 0, "ux": 0, "design": 0, "develop": 0, "review": 0, "security": 0, "devops": 0, "test": 0, "sprint": 0 },
   "verdicts": { "review": null, "security": null, "devops": null, "test": null },
   "unresolved": []
 }
 ```
 
-Update it after every phase (increment the run count, record verdicts, append unresolved failures). If a pipeline is interrupted and re-run in the same sprint, resume from this file instead of starting at zero.
+`profile` and `features` are what the helper printed; `phase_runs` and `verdicts` get a key for every phase in `ORDER`. When resuming, use the recorded `profile` and `features`, never the current config. A state file written before profiles existed has neither key: treat it as `default` with every switch off. Update the file after every phase (increment the run count, record verdicts, append unresolved failures). If a pipeline is interrupted and re-run in the same sprint, resume from this file instead of starting at zero.
 
-3. Log the pipeline start, **with the goal of this run in one line** (the project idea or feature from the command arguments or conversation; for a sprint continuing existing work, the sprint's focus). The dashboard shows this line as the run's title:
+4. Log the pipeline start, **with the goal of this run in one line** (the project idea or feature from the command arguments or conversation; for a sprint continuing existing work, the sprint's focus). The dashboard shows this line as the run's title. Right after it, log the profile and the order, copied from the helper's `PROFILE=` and `ORDER=` lines (the dashboard builds its phase list from this line):
 
 ```bash
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Full pipeline started (sprint <NN>): <goal in one line>" >> logs/agent-workflow.log
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] PIPELINE | Agent: orchestrator | Profile <name> | Order: <ORDER, space separated>" >> logs/agent-workflow.log
 ```
 
-## Default Pipeline Order
+## Pipeline Order for This Run
+
+The run's order is the helper's `ORDER=` line. With the `default` profile it is:
 
 ```
 maxPlanck-kickoff → maxPlanck-ux → maxPlanck-design → maxPlanck-develop → maxPlanck-review → maxPlanck-audit → maxPlanck-infra → maxPlanck-test → maxPlanck-sprint
 ```
+
+Other profiles insert optional phases into it (each has its own routing rules, marked with the switch that enables them). **"Next phase" below always means the next entry of this run's order.** A phase whose switch is off is not in the order: it is never invoked and never logged as skipped. A switch with no routing rule in this file yet is read and recorded, and nothing else.
 
 ## Phase Routing Rules
 

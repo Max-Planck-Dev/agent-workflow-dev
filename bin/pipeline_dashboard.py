@@ -45,6 +45,9 @@ ROLE_TO_PHASE = {
     "product-owner": "kickoff",
     "ux-designer": "ux",
     "architect": "design",
+    "design-reviewer": "design-review",
+    "tech-lead": "plan",
+    "plan-reviewer": "plan-review",
     "developer": "develop",
     "code-reviewer": "review",
     "security": "audit",
@@ -61,10 +64,16 @@ ORDERS = {
     "change": ["kickoff", "design", "develop", "review", "audit", "test", "sprint"],
     "adopt": ["adopt"],
 }
-OPTIONAL = {"change": {"design", "audit"}}
-# Reference ordering for phases an orchestrator adds that its kind's order
-# does not list (a change request that routes through infra, for example).
-CANONICAL = ORDERS["feeling-lucky"] + ["report"]
+# Phases a change request runs only when the change calls for them; at
+# completion they read as skipped, not missed. The profile's optional phases
+# (design-review, plan, plan-review, gate) join the set when the run's
+# profile line puts them in the order.
+OPTIONAL = {"change": {"design", "design-review", "plan", "plan-review", "gate", "audit"}}
+# Reference ordering for every phase any profile can run: the slot for a phase
+# an orchestrator improvises, and the order a profile line is checked against.
+CANONICAL = ["kickoff", "ux", "design", "design-review", "plan", "plan-review", "develop", "review",
+             "gate", "audit", "infra", "test", "sprint", "report"]
+PHASE_COL_MIN = 8
 
 LINE_RE = re.compile(
     r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] (\w+)\s*\| Agent: ([^|]*?)\s*(?:\| (.*))?$"
@@ -82,6 +91,9 @@ ROUTE_RE = re.compile(
     r"(?: \| Reason: (.*))?$"
 )
 SKIP_RE = re.compile(r"^Phase ([\w-]+) skipped(?: \| Reason: (.*))?$")
+# Logged by the orchestrators right after the start line: the project's
+# profile and the phase order this run will follow.
+PROFILE_RE = re.compile(r"^Profile ([\w-]+) \| Order: ([\w -]+?)\s*$")
 PROGRESS_RE = re.compile(r"^(\d+)/(\d+)\s*\|\s*(.*?)(?:\s*\| Output: (.*))?$")
 NAMESPACE_RE = re.compile(r"^[a-z0-9_-]+:")
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
@@ -127,6 +139,7 @@ class Transition:
 class Run:
     prefix: str = DEFAULT_PREFIX
     kind: Optional[str] = None
+    profile: Optional[str] = None
     sprint: Optional[str] = None
     description: Optional[str] = None
     started_ts: Optional[float] = None
@@ -428,12 +441,28 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
         run.description = (desc_a or desc_b or "").strip() or None
         run.started_ts = t
         run.completed_ts = None
+        run.profile = None
         run.order = list(ORDERS[run.kind])
         run.optional = sorted(OPTIONAL.get(run.kind, set()))
         run.phases = {p: PhaseState(name=p) for p in run.order}
         if run.order:
             run.phases[run.order[0]].status = "queued"
         run.transitions, run.loops, run.agent_sessions = [], [], []
+        return
+
+    m = PROFILE_RE.match(rest)
+    if m and run.kind:
+        # Recorded before any phase runs, so the order can be rebuilt whole.
+        # Only phases the dashboard knows are taken, in the orchestrator's order.
+        name, order = m.groups()
+        phases = [canon_phase(p) for p in order.split()]
+        phases = [p for p in phases if p in CANONICAL]
+        if phases:
+            run.profile = name
+            run.order = phases
+            run.optional = sorted(OPTIONAL.get(run.kind, set()) & set(phases))
+            run.phases = {p: PhaseState(name=p) for p in phases}
+            run.phases[phases[0]].status = "queued"
         return
 
     m = COMPLETE_RE.match(rest)
@@ -864,6 +893,8 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
         head.append((f"  sprint {run.sprint}", None))
     if run.kind:
         head.append((f"  {run.kind}", "cyan"))
+    if run.profile and run.profile != "default":
+        head.append((f"  profile {run.profile}", "magenta"))
     lines = [head]
     if run.started_ts:
         sub = f"started {fmt_clock(run.started_ts)}"
@@ -880,10 +911,11 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
     if run.order:
         full, compact = [], []
         last = run.transitions[-1] if run.transitions else None
+        name_w = max(PHASE_COL_MIN, max(len(n) for n in run.order))
         for name in run.order:
             ps = run.phases[name]
             col = STATUS_COLOR[ps.status]
-            segs = [(f"{STATUS_GLYPH[ps.status]} ", col), (f"{name:<8}", col if ps.status != "done" else None)]
+            segs = [(f"{STATUS_GLYPH[ps.status]} ", col), (f"{name:<{name_w}}", col if ps.status != "done" else None)]
             extra = ""
             if ps.status == "running":
                 extra = f" r{ps.runs + 1}" if ps.runs else ""
