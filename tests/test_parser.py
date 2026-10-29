@@ -385,3 +385,74 @@ class ProfileLineTests(unittest.TestCase):
         for name in ("design", "design-review", "plan", "plan-review", "gate", "audit"):
             self.assertEqual(run.phases[name].status, "skipped", name)
         self.assertEqual(run.phases["sprint"].status, "done")
+
+
+class PerStoryLoopTests(unittest.TestCase):
+    """With the story-loop switch, plan → plan-review → develop → review run once per
+    story; the routing lines carry the story and the dashboard tells advancing from retrying."""
+
+    LINES = [
+        "[2026-10-17 10:00:00] PIPELINE | Agent: orchestrator | Full pipeline started (sprint 05): per-story loop\n",
+        "[2026-10-17 10:00:01] PIPELINE | Agent: orchestrator | Profile nacho | Order: kickoff ux design design-review plan plan-review develop review gate audit infra test sprint\n",
+        "[2026-10-17 10:01:00] PIPELINE | Agent: orchestrator | Phase design-review finished → routing to plan | Reason: APPROVED\n",
+        "[2026-10-17 10:01:30] PIPELINE | Agent: orchestrator | Stories in scope (sprint 05): story-001, story-002, story-003\n",
+        "[2026-10-17 10:02:00] START | Agent: maxPlanck-tech-lead | Starting\n",
+        "[2026-10-17 10:05:00] PIPELINE | Agent: orchestrator | Phase plan (story-001) finished → routing to plan-review (story-001) | Reason: plan written\n",
+        "[2026-10-17 10:08:00] PIPELINE | Agent: orchestrator | Phase plan-review (story-001) finished → routing to develop (story-001) | Reason: APPROVED\n",
+        "[2026-10-17 10:20:00] PIPELINE | Agent: orchestrator | Phase develop (story-001) finished → routing to review (story-001) | Reason: builds\n",
+        "[2026-10-17 10:25:00] PIPELINE | Agent: orchestrator | Phase review (story-001) finished → routing to develop (story-001) | Reason: NEEDS CHANGES — 1 critical\n",
+        "[2026-10-17 10:30:00] PIPELINE | Agent: orchestrator | Phase develop (story-001, re-run) finished → routing to review (story-001) | Reason: fixed\n",
+        "[2026-10-17 10:35:00] PIPELINE | Agent: orchestrator | Phase review (story-001, re-run) finished → routing to plan (story-002) | Reason: APPROVED — next story\n",
+        "[2026-10-17 10:36:00] START | Agent: maxPlanck-tech-lead | Starting\n",
+    ]
+
+    def parse(self, lines, now="2026-10-17 10:40:00"):
+        return pd.parse_log(lines, "maxPlanck", now=ts(now))
+
+    def test_stories_and_current_story(self):
+        run = self.parse(self.LINES)
+        self.assertEqual(run.stories, ["story-001", "story-002", "story-003"])
+        self.assertEqual(run.current_story, "story-002")
+        self.assertEqual(run.story_index(), (2, 3))
+        self.assertEqual(run.current_phase(), "plan")
+        self.assertEqual(pd.story_run_label(run, "plan"), " story-002")
+        self.assertEqual(pd.story_run_label(run, "audit"), "")
+
+    def test_next_story_is_not_a_loop_but_a_retry_is(self):
+        run = self.parse(self.LINES)
+        self.assertEqual([(l.src, l.dst, l.story) for l in run.loops], [("review", "develop", "story-001")])
+        last = run.transitions[-1]
+        self.assertEqual((last.src, last.dst, last.story, last.next_story), ("review", "plan", "story-001", "story-002"))
+        self.assertEqual(run.story_runs["story-001"], {"plan": 1, "plan-review": 1, "develop": 2, "review": 2})
+        self.assertEqual(run.phases["develop"].runs, 2)
+
+    def test_story_runs_show_the_retry_count_for_the_current_story(self):
+        lines = self.LINES[:9] + ["[2026-10-17 10:26:00] START | Agent: maxPlanck-developer | Starting\n"]
+        run = self.parse(lines, now="2026-10-17 10:27:00")
+        self.assertEqual(run.current_story, "story-001")
+        self.assertEqual(pd.story_run_label(run, "develop"), " story-001 r2")
+
+    def test_leaving_the_loop_clears_the_story(self):
+        lines = self.LINES + [
+            "[2026-10-17 10:50:00] PIPELINE | Agent: orchestrator | Phase review (story-003) finished → routing to gate | Reason: APPROVED — last story\n",
+        ]
+        run = self.parse(lines, now="2026-10-17 10:55:00")
+        self.assertIsNone(run.current_story)
+        self.assertEqual(run.stories, ["story-001", "story-002", "story-003"])
+        # A sprint-level fix pass back to develop carries no story and is a loop as before.
+        run = self.parse(lines + ["[2026-10-17 11:00:00] PIPELINE | Agent: orchestrator | Phase gate finished → routing to develop | Reason: GATE=FAIL\n"],
+                         now="2026-10-17 11:05:00")
+        self.assertEqual([(l.src, l.dst) for l in run.loops][-1], ("gate", "develop"))
+        self.assertIsNone(run.current_story)
+
+    def test_stories_are_learned_from_routing_lines_without_an_announcement(self):
+        lines = [l for l in self.LINES if "Stories in scope" not in l]
+        run = self.parse(lines)
+        self.assertEqual(run.stories, ["story-001", "story-002"])
+        self.assertEqual(run.story_index(), (2, 2))
+
+    def test_logs_without_stories_are_unchanged(self):
+        run = pd.parse_log(fixture_lines("agent-workflow.modern.log"), "maxPlanck", now=ts("2026-09-21 11:07:00"))
+        self.assertEqual(run.stories, [])
+        self.assertIsNone(run.current_story)
+        self.assertEqual(pd.story_run_label(run, "develop"), "")

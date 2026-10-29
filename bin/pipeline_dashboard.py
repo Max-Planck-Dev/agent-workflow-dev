@@ -87,9 +87,16 @@ COMPLETE_RE = re.compile(
     r"(?: \(sprint (\d+)\))?.*?(?:Unresolved: (\d+))?\s*$"
 )
 ROUTE_RE = re.compile(
-    r"^Phase ([\w-]+)(?: \(([^)]*)\))? (finished|force-advanced) (?:→|->) routing to ([\w-]+)"
+    r"^Phase ([\w-]+)(?: \(([^)]*)\))? (finished|force-advanced) (?:→|->) routing to ([\w-]+)(?: \(([^)]*)\))?"
     r"(?: \| Reason: (.*))?$"
 )
+# With the story-loop switch, plan, plan-review, develop and review run once
+# per story: the orchestrator announces the stories, and tags those phases'
+# routing lines with the story — `Phase review (story-001) finished → routing
+# to plan (story-002)`.
+STORIES_RE = re.compile(r"^Stories in scope(?: \(sprint \d+\))?: (.*)$")
+STORY_ID_RE = re.compile(r"\bstory-\d{3,}\b")
+PER_STORY = ("plan", "plan-review", "develop", "review")
 SKIP_RE = re.compile(r"^Phase ([\w-]+) skipped(?: \| Reason: (.*))?$")
 # Logged by the orchestrators right after the start line: the project's
 # profile and the phase order this run will follow.
@@ -133,6 +140,8 @@ class Transition:
     reason: Optional[str]
     note: Optional[str]
     verb: str
+    story: Optional[str] = None  # the story the finished phase ran for
+    next_story: Optional[str] = None  # the story the next phase runs for, when the line says
 
 
 @dataclass
@@ -159,6 +168,15 @@ class Run:
     malformed: int = 0
     now: float = 0.0
     history: Dict[str, List[float]] = field(default_factory=dict)  # phase -> past run durations (all runs in the log)
+    stories: List[str] = field(default_factory=list)  # in order: announced, or as first seen in routing lines
+    current_story: Optional[str] = None
+    story_runs: Dict[str, Dict[str, int]] = field(default_factory=dict)  # story -> phase -> finished runs
+
+    def story_index(self) -> Optional[Tuple[int, int]]:
+        """(k, n): the current story's 1-based position among the stories."""
+        if not self.current_story or self.current_story not in self.stories:
+            return None
+        return self.stories.index(self.current_story) + 1, len(self.stories)
 
     def current_session(self) -> Optional[AgentSession]:
         for s in reversed(self.agent_sessions):
@@ -448,6 +466,14 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
         if run.order:
             run.phases[run.order[0]].status = "queued"
         run.transitions, run.loops, run.agent_sessions = [], [], []
+        run.stories, run.current_story, run.story_runs = [], None, {}
+        return
+
+    m = STORIES_RE.match(rest)
+    if m:
+        for story in STORY_ID_RE.findall(m.group(1)):
+            if story not in run.stories:
+                run.stories.append(story)
         return
 
     m = PROFILE_RE.match(rest)
@@ -478,24 +504,37 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
 
     m = ROUTE_RE.match(rest)
     if m:
-        src, note, verb, dst, reason = m.groups()
+        src, note, verb, dst, dst_note, reason = m.groups()
         src, dst = canon_phase(src), canon_phase(dst)
+        story = _story_in(note)
+        next_story = _story_in(dst_note)
+        for s in (story, next_story):
+            if s and s not in run.stories:
+                run.stories.append(s)
         ps = _ensure_phase(run, src)
         _close_sessions(run, t, phase=src)
         if verb == "finished":
             ps.runs += 1
             ps.status = "done"
+            if story:
+                counts = run.story_runs.setdefault(story, {})
+                counts[src] = counts.get(src, 0) + 1
         else:
             ps.status = "forced"
         ps.finished = t
         if ps.started:
             ps.durations.append(max(0.0, t - ps.started))
         ps.last_reason = reason
-        tr = Transition(ts=t, src=src, dst=dst, reason=reason, note=note, verb=verb)
+        if next_story or story:
+            run.current_story = next_story or story
+        if dst not in PER_STORY and not next_story:
+            run.current_story = None  # the per-story loop is over: a sprint-level phase is next
+        tr = Transition(ts=t, src=src, dst=dst, reason=reason, note=note, verb=verb, story=story, next_story=next_story)
         run.transitions.append(tr)
         if run.order and src in run.order and dst in run.order:
             si, di = run.order.index(src), run.order.index(dst)
-            if di < si:
+            # Going back to plan for the *next* story is the loop advancing, not a retry.
+            if di < si and not (next_story and next_story != story):
                 run.loops.append(tr)
             elif di > si + 1:
                 for skipped in run.order[si + 1:di]:
@@ -512,6 +551,19 @@ def _apply_pipeline(run: Run, t: float, rest: str) -> None:
         ps = _ensure_phase(run, canon_phase(name))
         ps.status = "skipped"
         ps.last_reason = reason
+
+
+def _story_in(note: Optional[str]) -> Optional[str]:
+    m = STORY_ID_RE.search(note or "")
+    return m.group(0) if m else None
+
+
+def story_run_label(run: Run, phase: str) -> str:
+    """` story-003 r2` for a per-story phase while the loop runs, else ``."""
+    if not run.current_story or phase not in PER_STORY:
+        return ""
+    done = run.story_runs.get(run.current_story, {}).get(phase, 0)
+    return f" {run.current_story}" + (f" r{done + 1}" if done else "")
 
 
 def _finalise(run: Run, now: float) -> None:
@@ -742,7 +794,8 @@ class HerdrBridge:
         elif phase:
             ps = run.phases[phase]
             idx = run.order.index(phase) + 1 if phase in run.order else 0
-            phase_txt = f"{phase} {idx}/{len(run.order)}" + (f" r{ps.runs + 1}" if ps.runs else "")
+            phase_txt = f"{phase} {idx}/{len(run.order)}"
+            phase_txt += story_run_label(run, phase) or (f" r{ps.runs + 1}" if ps.runs else "")
         else:
             phase_txt = "idle"
         sess = run.current_session()
@@ -901,6 +954,10 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
         if run.description:
             sub += " · "
         lines.extend(wrapped([(sub, "dim")], run.description or "", "dim", width))
+        if run.current_story:
+            pos = run.story_index()
+            story_txt = f"story {pos[0]}/{pos[1]} · {run.current_story}" if pos else f"story {run.current_story}"
+            lines.append([(story_txt, "cyan")])
     elif run.state == "idle":
         lines.append([("no pipeline run in this log", "dim")])
     if run.state == "stale" and run.last_line_ts:
@@ -918,7 +975,7 @@ def build_sections(run: Run, heartbeat: Optional[dict], width: int, tail_n: int)
             segs = [(f"{STATUS_GLYPH[ps.status]} ", col), (f"{name:<{name_w}}", col if ps.status != "done" else None)]
             extra = ""
             if ps.status == "running":
-                extra = f" r{ps.runs + 1}" if ps.runs else ""
+                extra = story_run_label(run, name) or (f" r{ps.runs + 1}" if ps.runs else "")
                 if ps.started:
                     extra += f"  {fmt_dur(now - ps.started)}"
             elif ps.runs > 1:
