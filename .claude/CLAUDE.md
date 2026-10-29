@@ -147,3 +147,7 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **Test:** Test files covering all acceptance criteria, executed with results in `docs/sprints/sprint-NN/test-plans/`
 - **Sprint:** `docs/sprints/sprint-NN/sprint-summary.md` with artifact inventory, story statuses updated, Bugs section, Undocumented Changes section (commits that bypassed the workflow, from the git-log vs activity-log cross-check), Blockers section listing every unresolved failure verdict, and next-step recommendations; `platform-proposals.md` with carried-over + new proposals
 - **Report:** 8 files (4 reports × Markdown + HTML) in a new dated folder under `docs/reports/`, correct per-audience branding, open items surfaced
+
+## Contributing
+
+`CONTRIBUTING.md` at the repo root is the maintainer's manifesto for changes to this workflow, and `AGENTS.md` restates it for AI coding tools. The rules that matter most when working here: the pipeline is complete and gains no phases, agents or helper scripts unless the maintainer asked for them; `/maxPlanck-feeling-lucky` never stops to ask the user anything; project data never leaves the machine by default; one change per PR against `master`; no plans, transcripts or scratch files committed; no duplicated helper code between skills; commits and PR descriptions carry no AI attribution; the test suite passes and new behaviour has tests.

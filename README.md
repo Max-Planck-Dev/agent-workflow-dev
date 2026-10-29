@@ -99,6 +99,10 @@ Product Owner → UX Designer → Architect → Developer → Code Reviewer → 
 
 When you decide a feature set is ready to ship, the **Release Manager** (`/maxPlanck-report`) produces the client-facing handoff pack — a release-cadence step outside the sprint loop.
 
+## Contributing
+
+Read `CONTRIBUTING.md` before opening a pull request. It is short and it is binding: the pipeline is complete as documented, `/maxPlanck-feeling-lucky` never asks the user anything, project data never leaves the machine by default, and every change arrives as one small PR against `master` with tests. `AGENTS.md` at the root carries the same rules for AI coding tools.
+
 ## Observability
 
 Every agent handoff is logged to `logs/agent-workflow.log` via two mechanisms:
