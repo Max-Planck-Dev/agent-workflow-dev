@@ -23,6 +23,7 @@ Product Owner → UX Designer → Architect → Developer → Code Reviewer → 
 | `maxPlanck-ux-designer` | `docs/ux/` |
 | `maxPlanck-architect` | `docs/architecture.md` |
 | `maxPlanck-design-reviewer` (profile switch `design-review`) | `docs/sprints/sprint-NN/design-review.md` (through `.claude/bin/maxPlanck-reviews.py`) |
+| `maxPlanck-tech-lead` (profile switch `plan`) | `docs/sprints/sprint-NN/dev-plan.md`, `docs/sprints/sprint-NN/plans/` |
 | `maxPlanck-developer` | Component paths per the `## Components` table in `docs/architecture.md` |
 | `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` |
 | `maxPlanck-security` | `docs/sprints/sprint-NN/security-report.md` |
@@ -51,6 +52,8 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 ```
 docs/sprints/sprint-NN/
 ├── design-review.md         (profile switch design-review; one section per round)
+├── dev-plan.md              (profile switch plan; the story order — no tasks)
+├── plans/story-NNN-plan.md  (profile switch plan; that story's tasks)
 ├── reviews/story-NNN-review.md
 ├── test-plans/story-NNN-tests.md
 ├── security-report.md
@@ -69,7 +72,7 @@ The current sprint number lives in `docs/sprints/.current-sprint` (two digits). 
 
 Skills are phase-named; agents are role-named, and the two sets must never collide. The security phase skill is `/maxPlanck-audit` (bound to the `maxPlanck-security` agent) and the infrastructure phase skill is `/maxPlanck-infra` (bound to the `maxPlanck-devops` agent).
 
-**Optional phases (profile switches):** `/maxPlanck-design-review` (switch `design-review`, bound to `maxPlanck-design-reviewer`) — an independent review of `docs/architecture.md` before any code; `bin/review_rounds.py` (installed as `.claude/bin/maxPlanck-reviews.py`) does the filing, so round numbers, stable `DR-NN-n` proposal IDs, open proposals and the verdict are computed by that script, never by an agent. The Architect rules on every proposal in the doc's `## Design Review Log`.
+**Optional phases (profile switches):** `/maxPlanck-design-review` (switch `design-review`, bound to `maxPlanck-design-reviewer`) — an independent review of `docs/architecture.md` before any code; `bin/review_rounds.py` (installed as `.claude/bin/maxPlanck-reviews.py`) does the filing, so round numbers, stable `DR-NN-n` proposal IDs, open proposals and the verdict are computed by that script, never by an agent. The Architect rules on every proposal in the doc's `## Design Review Log`. `/maxPlanck-plan` (switch `plan`, bound to `maxPlanck-tech-lead`) — development plans before code: a per-sprint story order in `dev-plan.md` and one plan per story under `plans/`, which the Developer then follows; `maxPlanck-plan all` plans every story in scope, `maxPlanck-plan story-NNN` one.
 
 **Full auto:** `/maxPlanck-feeling-lucky` — runs the entire pipeline above in one command, no manual triggering between phases.
 
@@ -150,7 +153,8 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns); `docs/ux/design-system.md` written or revised first when the PRD's design system source is `new` or `existing`
 - **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint; every open design review proposal ruled on in `## Design Review Log`
 - **Design Review** (switch `design-review`): `docs/sprints/sprint-NN/design-review.md` with a `## Round` section per run naming its reviewer, proposals under stable `DR-NN-n` IDs, an Open Proposals list, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict
-- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
+- **Plan** (switch `plan`): `docs/sprints/sprint-NN/dev-plan.md` with a `## Story Order`, and `plans/story-NNN-plan.md` per story with `## Implementation Order`, a `## Tasks` table covering every acceptance criterion, and per-component verification commands
+- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly (and the sprint's development plans, when the `plan` switch is on); all critical feedback from this sprint's reviews/security/test reports addressed
 - **Review:** Reports in `docs/sprints/sprint-NN/reviews/` with severity-categorized findings and APPROVED/NEEDS CHANGES verdict
 - **Security:** Security report in `docs/sprints/sprint-NN/security-report.md` with OWASP-mapped findings, ISR table (carried + new, stable IDs), and CLEAR/WARNINGS/CRITICAL FINDINGS verdict
 - **DevOps:** Terraform in the infra component's path, CI/CD in each component's CI workflow (both resolved from `docs/architecture.md`), deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict

@@ -483,6 +483,7 @@ echo "  /${PREFIX}-kickoff        — Product Owner writes PRD + stories from yo
 echo "  /${PREFIX}-ux             — UX Designer creates wireframes"
 echo "  /${PREFIX}-design         — Architect creates technical design"
 echo "  /${PREFIX}-design-review  — An independent reviewer checks the design (profile switch design-review)"
+echo "  /${PREFIX}-plan           — Tech Lead writes the development plans (profile switch plan)"
 echo "  /${PREFIX}-develop        — Developer implements the code"
 echo "  /${PREFIX}-review         — Code Reviewer checks the implementation"
 echo "  /${PREFIX}-audit          — Security Reviewer audits and writes ISRs"
