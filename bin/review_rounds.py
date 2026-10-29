@@ -534,11 +534,14 @@ def codex_version(codex: str) -> str:
         return "version unknown"
 
 
-def ask_codex(codex: str, stage: str, work: str, prompt: str, timeout: int) -> Tuple[Optional[dict], str]:
-    """Return (answer, "") on success or (None, one-line reason) on failure."""
+def ask_codex(codex: str, stage: str, work: str, prompt: str, timeout: int, schema_obj: Optional[dict] = None,
+              validate=None, max_bytes: int = MAX_ANSWER_BYTES) -> Tuple[Optional[dict], str]:
+    """Return (answer, "") on success or (None, one-line reason) on failure.
+    Other review helpers (the code review) reuse this with their own schema
+    and validator, so the Codex invocation lives in one place."""
     schema, answer = os.path.join(work, "schema.json"), os.path.join(work, "answer.json")
     with open(schema, "w", encoding="utf-8") as fh:
-        json.dump(SCHEMA, fh)
+        json.dump(schema_obj or SCHEMA, fh)
     cmd = [codex, "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "--color", "never",
            "-C", stage, "--output-schema", schema, "-o", answer, "-"]
     try:
@@ -559,13 +562,13 @@ def ask_codex(codex: str, stage: str, work: str, prompt: str, timeout: int) -> T
         hint = " — not logged in? run codex login" if re.search(r"401|unauthorized|not logged in|login", transcript, re.I) else ""
         return None, f"Codex exited with status {proc.returncode}{hint}"
     try:
-        if os.path.getsize(answer) > MAX_ANSWER_BYTES:
+        if os.path.getsize(answer) > max_bytes:
             return None, "the answer from Codex was larger than the accepted size"
         with open(answer, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
         return None, "the answer from Codex was missing or not valid JSON"
-    problem = invalid(data)
+    problem = (validate or invalid)(data)
     return (None, f"the answer from Codex did not match the expected format ({problem})") if problem else (data, "")
 
 

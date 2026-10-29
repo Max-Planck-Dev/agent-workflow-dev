@@ -255,3 +255,25 @@ class IntegrationGateWiringTests(unittest.TestCase):
             self.assertIn("GATE=", text, rel)
         self.assertIn("gate", wc.order(wc.PROFILES["nacho"]["features"])[0])
         self.assertNotIn("gate", wc.order(wc.PROFILES["default"]["features"])[0])
+
+
+class CodeReviewWiringTests(unittest.TestCase):
+    """The code review goes through the helper; Codex only behind the codex switch."""
+
+    def read(self, rel):
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_skill_and_agent_use_the_helper(self):
+        for rel in (".claude/skills/maxPlanck-review/SKILL.md", ".claude/agents/maxPlanck-code-reviewer.md"):
+            text = self.read(rel)
+            self.assertIn("maxPlanck-code-review.py", text, rel)
+            self.assertIn("FALLBACK", text, rel)
+        self.assertIn("code_review:code-review", self.read("setup.sh"))
+
+    def test_helper_reuses_the_reviews_primitives(self):
+        import ast
+        tree = ast.parse(self.read("bin/code_review.py"))
+        names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+        for shared in ("ask_codex", "external_reviewer_allowed", "components", "git_visible", "codex_version"):
+            self.assertNotIn(shared, names, f"{shared} must come from review_rounds.py, not be copied")
