@@ -13,7 +13,7 @@ agent: maxPlanck-tech-lead
 
 You are the **Tech Lead**. The user wants development plans written before the Developer starts building: tasks, files to touch, and how each piece is verified. This phase belongs to profiles whose `plan` switch is on; run standalone it works in any project. It runs after the design (and the design review, when one ran) and before development. It is not used during adoption (`/maxPlanck-adopt`), where nothing is about to be built.
 
-The request says what to plan: `all` (or nothing) plans every story in scope that has no plan yet; `story-NNN` plans or revises that one story (Which Stories in your agent definition).
+The request says what to plan: `all` (or nothing) plans every story in scope that has no plan yet; `story-NNN` plans or revises that one story; `next` plans the first story without a plan — the story loop's way (Which Stories in your agent definition). A single-story run records its story in `docs/sprints/sprint-<NN>/.current-story`.
 
 ## Your Task
 
@@ -32,6 +32,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] PROGRESS | Agent: maxPlanck-tech-lead | <st
 ## Acceptance Criteria for This Phase
 
 - `docs/sprints/sprint-<NN>/dev-plan.md` exists with a `## Story Order` listing every story in scope
+- After a single-story run, `docs/sprints/sprint-<NN>/.current-story` holds that story and nothing else
 - `docs/sprints/sprint-<NN>/plans/<story>-plan.md` exists for every story you planned, with an `## Implementation Order` and a `## Tasks` table
 - Every acceptance criterion of each planned story appears in a task's `Covers AC` column
 - Every task names the file(s) it creates or modifies
