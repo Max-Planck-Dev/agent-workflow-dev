@@ -329,3 +329,160 @@ class ExternalReviewerTests(DesignReviewRoundsTests):
         out, fields2 = self.file_answer({"summary": "x", "proposals": []}, "--reason", fields["FALLBACK"])
         self.assertEqual(out.returncode, 0, out.stdout)
         self.assertEqual(fields2["REVIEWER"], "Claude (fallback — Codex CLI not installed)")
+
+
+ARCHITECTURE_WITH_COMPONENTS = ARCHITECTURE.replace("## Change Log", """## Components
+| ID | Path | Kind | Git repo | CI workflow | Stack |
+|----|------|------|----------|-------------|-------|
+| api | `backend` | service | — | — | NestJS |
+| web | `frontend` | app | — | — | React |
+| infra | `infra` | infra | — | — | Terraform |
+
+### Excluded Paths
+| Path | Reason |
+|------|--------|
+| `other-client` | another product |
+
+## Change Log""")
+
+PLAN = """# Development Plan — Sprint 03 — story-007: Saved filters
+
+## Implementation Order
+1. `api`
+
+## Tasks
+| # | Task | Files (create/modify) | Covers AC |
+|---|------|-----------------------|-----------|
+| 1 | Add the filter entity | `backend/src/filter.ts` | AC1 |
+
+**Verification:** cd backend && npm run build
+"""
+
+
+class PlanReviewRoundsTests(unittest.TestCase):
+    REPORT = "docs/sprints/sprint-03/plan-reviews/story-007-plan-review.md"
+    PLAN_PATH = "docs/sprints/sprint-03/plans/story-007-plan.md"
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="rr-plan-")
+        for d in ("docs/sprints/sprint-03/plans", "docs/stories", "backend/src", "backend/node_modules/x",
+                  "frontend/src", "other-client", "infra"):
+            os.makedirs(os.path.join(self.root, d))
+        self.write("docs/sprints/.current-sprint", "03\n")
+        self.write("docs/architecture.md", ARCHITECTURE_WITH_COMPONENTS)
+        self.write("docs/prd.md", "# PRD\n")
+        self.write("docs/stories/story-007.md", "# Saved filters\n")
+        self.write("docs/sprints/sprint-03/dev-plan.md", "# Development Plan — Sprint 03\n\n## Story Order\n1. story-007\n")
+        self.write(self.PLAN_PATH, PLAN)
+        self.write("backend/src/app.ts", "export const a = 1;\n")
+        self.write("backend/node_modules/x/index.js", "module.exports = 1;\n")
+        self.write("frontend/src/App.tsx", "export const App = () => null;\n")
+        self.write("other-client/secret.ts", "nope\n")
+        self.write("infra/main.tf", "resource {}\n")
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def write(self, rel, text):
+        path = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def read(self, rel):
+        with open(os.path.join(self.root, rel), encoding="utf-8") as fh:
+            return fh.read()
+
+    def run_helper(self, command, *extra, story="story-007", stdin=None):
+        args = ["--story", story] if story else []
+        out = subprocess.run([sys.executable, "-I", HELPER, command, "--kind", "plan", *args, "--root", self.root, *extra],
+                             input=stdin, capture_output=True, text=True, env=clean_env(), timeout=60, check=False)
+        fields = dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line and not line.startswith(" "))
+        return out, fields
+
+    def file_answer(self, answer, *extra):
+        number = json.loads(self.run_helper("status")[0].stdout)["rounds"] + 1
+        return self.run_helper("file", "--round", str(number), *extra, stdin=json.dumps(answer))
+
+    def decide(self, *rows):
+        table = "\n## Plan Review Log\n| Proposal | Date | Disposition | Rationale / What changed |\n|---|---|---|---|\n"
+        table += "".join(f"| {pid} | 2026-10-06 | {disp} | because |\n" for pid, disp in rows)
+        self.write(self.PLAN_PATH, PLAN + table)
+
+    def test_report_ids_and_log_are_per_story(self):
+        out, fields = self.file_answer({"summary": "One gap.", "proposals": [proposal(severity="HIGH")]})
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        self.assertEqual((fields["STORY"], fields["OPEN"], fields["RECHECK"], fields["REPORT"]), ("story-007", "PR-03-007-1", "yes", self.REPORT))
+        report = self.read(self.REPORT)
+        self.assertIn("# Plan Review — Sprint 03 — story-007", report)
+        self.assertIn("**Story:** story-007", report)
+        self.assertIn("docs/sprints/sprint-03/plans/story-007-plan.md", report)
+        self.decide(("PR-03-007-1", "ACCEPTED"))
+        st = json.loads(self.run_helper("status")[0].stdout)
+        self.assertEqual((st["verdict"], st["story"], st["recheck"]), ("APPROVED", "story-007", True))
+
+    def test_recheck_only_after_critical_or_high_and_never_past_two_rounds(self):
+        _, fields = self.file_answer({"summary": "Minor.", "proposals": [proposal(severity="LOW")]})
+        self.assertEqual(fields["RECHECK"], "no")
+        self.decide(("PR-03-007-1", "REJECTED"))
+        _, fields = self.file_answer({"summary": "Serious.", "proposals": [proposal("Wrong order", "CRITICAL")]})
+        self.assertEqual((fields["ROUND"], fields["RECHECK"]), ("2", "no"))
+
+    def test_brief_lists_the_plan_the_index_and_the_paths_only_inventory(self):
+        out, _ = self.run_helper("brief")
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+        text = out.stdout
+        self.assertIn("plan for story-007", text)
+        self.assertIn("- docs/sprints/sprint-03/dev-plan.md", text)
+        self.assertIn("- " + self.PLAN_PATH, text)
+        self.assertIn("backend/src/app.ts", text)
+        self.assertIn("frontend/src/App.tsx", text)
+        self.assertIn("infra/main.tf", text)
+        self.assertNotIn("node_modules/x", text)
+        self.assertNotIn("other-client/", text)
+        self.assertNotIn("export const", text)  # paths only, never contents
+        self.assertIn("file --kind plan --story story-007 --round 1", text)
+
+    def test_story_is_required_and_validated(self):
+        out, fields = self.run_helper("brief", story="")
+        self.assertEqual(out.returncode, rr.EXIT_PRECONDITION)
+        self.assertIn("--story", fields["ERROR"])
+        for bad in ("../x", "story-7", "story-099"):
+            out, fields = self.run_helper("status", story=bad)
+            self.assertEqual(out.returncode, rr.EXIT_PRECONDITION, bad)
+        os.remove(os.path.join(self.root, self.PLAN_PATH))
+        out, fields = self.run_helper("brief")
+        self.assertEqual(out.returncode, rr.EXIT_PRECONDITION)
+        self.assertIn("plan phase", fields["ERROR"])
+
+    def test_two_stories_never_share_ids_or_reports(self):
+        self.write("docs/stories/story-008.md", "# Another\n")
+        self.write("docs/sprints/sprint-03/plans/story-008-plan.md", PLAN.replace("story-007", "story-008"))
+        self.file_answer({"summary": "x", "proposals": [proposal()]})
+        out, fields = self.run_helper("file", "--round", "1", story="story-008", stdin=json.dumps({"summary": "y", "proposals": [proposal()]}))
+        self.assertEqual(fields["OPEN"], "PR-03-008-1")
+        self.assertEqual(json.loads(self.run_helper("status")[0].stdout)["open"], ["PR-03-007-1"])
+
+    def test_codex_stage_holds_docs_plan_and_inventory_but_no_source(self):
+        bin_dir = tempfile.mkdtemp(prefix="rr-bin-")
+        try:
+            log = os.path.join(bin_dir, "fake")
+            answer_path = os.path.join(bin_dir, "answer.json")
+            with open(os.path.join(bin_dir, "codex"), "w", encoding="utf-8") as fh:
+                fh.write(FAKE_CODEX)
+            os.chmod(os.path.join(bin_dir, "codex"), 0o755)
+            with open(answer_path, "w", encoding="utf-8") as fh:
+                json.dump({"summary": "ok", "proposals": []}, fh)
+            self.write(".claude/maxPlanck-config.json", json.dumps({"profile": "default", "features": {"codex": True}}))
+            env = clean_env(PATH=bin_dir + os.pathsep + "/usr/bin:/bin", FAKE_CODEX_MODE="ok", FAKE_CODEX_LOG=log, FAKE_CODEX_ANSWER=answer_path)
+            out = subprocess.run([sys.executable, "-I", HELPER, "run", "--kind", "plan", "--story", "story-007", "--root", self.root],
+                                 capture_output=True, text=True, env=env, timeout=60, check=False)
+            self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+            with open(log + ".files", encoding="utf-8") as fh:
+                files = fh.read().split()
+            self.assertIn("./code-inventory.txt", files)
+            self.assertIn("./" + self.PLAN_PATH, files)
+            self.assertIn("./docs/sprints/sprint-03/dev-plan.md", files)
+            self.assertFalse(any(f.startswith("./backend") or f.startswith("./frontend") for f in files), files)
+        finally:
+            shutil.rmtree(bin_dir, ignore_errors=True)

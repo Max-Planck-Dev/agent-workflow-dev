@@ -27,12 +27,13 @@ EXPECTED_AGENTS = {
     "maxPlanck-release-manager",
     "maxPlanck-design-reviewer",  # profile switch design-review
     "maxPlanck-tech-lead",  # profile switch plan
+    "maxPlanck-plan-reviewer",  # profile switch plan-review
 }
 EXPECTED_SKILLS = {
     "maxPlanck-kickoff", "maxPlanck-ux", "maxPlanck-design", "maxPlanck-develop",
     "maxPlanck-review", "maxPlanck-audit", "maxPlanck-infra", "maxPlanck-test",
     "maxPlanck-sprint", "maxPlanck-feeling-lucky", "maxPlanck-adopt",
-    "maxPlanck-change", "maxPlanck-report", "maxPlanck-config", "maxPlanck-design-review", "maxPlanck-plan",
+    "maxPlanck-change", "maxPlanck-report", "maxPlanck-config", "maxPlanck-design-review", "maxPlanck-plan", "maxPlanck-plan-review",
     "maxPlanck-proposal",  # repo-only: never installed, never in the plugin
 }
 
