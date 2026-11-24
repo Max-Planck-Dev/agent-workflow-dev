@@ -81,6 +81,7 @@ Ten specialized AI agents — Product Owner, UX Designer, Architect, Developer, 
 | `/maxPlanck-feeling-lucky` | Runs the entire pipeline end-to-end automatically |
 | `/maxPlanck-adopt` | Adopts an existing codebase — reverse-engineers the founding docs as-built |
 | `/maxPlanck-change` | Runs a change request through the team — docs update first, then implement → review → test |
+| `/maxPlanck-work-column` | Works a column of the project's Trello board: groups the cards by root cause, runs them through `/maxPlanck-change` or `/maxPlanck-feeling-lucky`, verifies the result itself, fixes what needs no answer, cards what does, moves the finished cards to review and leaves a status paragraph on each. Does nothing until `--setup <board URL>` has been run in the project |
 | `/maxPlanck-report` | Release Manager generates the 4-report release pack: internal report, client report, blog-style release note, QA checklist |
 | `/maxPlanck-design-review` | Profile switch `design-review`: an independent reviewer checks the design before any code, and the Architect accepts or rejects each proposal |
 | `/maxPlanck-plan` | Profile switch `plan`: the Tech Lead writes development plans (story order + tasks per story) the Developer follows |

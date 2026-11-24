@@ -34,6 +34,7 @@ EXPECTED_SKILLS = {
     "maxPlanck-review", "maxPlanck-audit", "maxPlanck-infra", "maxPlanck-test",
     "maxPlanck-sprint", "maxPlanck-feeling-lucky", "maxPlanck-adopt",
     "maxPlanck-change", "maxPlanck-report", "maxPlanck-config", "maxPlanck-design-review", "maxPlanck-plan", "maxPlanck-plan-review",
+    "maxPlanck-work-column",  # works a Trello column through change / feeling-lucky; inert until --setup
     "maxPlanck-proposal",  # repo-only: never installed, never in the plugin
 }
 

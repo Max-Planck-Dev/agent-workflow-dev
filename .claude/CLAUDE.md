@@ -84,13 +84,15 @@ Skills are phase-named; agents are role-named, and the two sets must never colli
 
 **Change requests:** `/maxPlanck-change "<description>"` — runs a post-cycle change through the team (docs updated first, then implement → review → test), so manual asks never drift out of the documented state.
 
+**Working a Trello column:** `/maxPlanck-work-column [column] [count | card-ref ...]` — for a project managed on a Trello board: reads a column's cards in full, groups them by root cause, runs the batch through `/maxPlanck-change` or `/maxPlanck-feeling-lucky` (it chooses, and says which), re-runs each component's build, tests and start itself against a baseline taken before the run, sends the findings that need no answer through fix rounds of `/maxPlanck-change` (three at most), creates a card only for a finding that needs an answer, moves the finished cards to the review column and comments one status paragraph on every card it considered. It adds no phase and no agent. The board and its column names live in `.claude/maxPlanck-trello.json`, written only by `--setup <board URL>`; that file is the project's consent to post to Trello, and without it the skill does nothing. `--plan` moves nothing, `--review` pauses on the drafted prompt, `--pr` is the say-so to commit, push and open a pull request for that cycle — otherwise it never commits.
+
 **Configuration:** `/maxPlanck-config` — shows or changes the project's **profile** (`.claude/maxPlanck-config.json`: a named preset of feature switches and agent models, plus overrides). `default` is this document's pipeline exactly; other profiles turn optional phases on. Orchestrators read the switches once at run start (`python3 .claude/bin/maxPlanck-config.py features`, every switch off when the helper is absent) and the SessionStart hook `apply-workflow-config.sh` writes the models into the agent files. Unbound like the orchestrators, but it is neither a phase nor an orchestrator and never writes to `logs/agent-workflow.log`.
 
 **Contributing to the workflow itself:** `/maxPlanck-proposal "<idea>"` or `--from-pr <N>` — repo-only (a `.repo-only` marker in its directory keeps `setup.sh` and the plugin from shipping it): assesses the idea against `CONTRIBUTING.md`, implements the compliant shape with tests on a `proposal/*` branch, and opens the PR with `gh`.
 
 **Release:** `/maxPlanck-report` — the Release Manager produces the 4-report handoff pack (internal release report, client release report, blog-style release note, QA checklist) in Markdown + HTML.
 
-Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
+Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The four **orchestrator** skills (`feeling-lucky`, `adopt`, `change`, `work-column`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
 
 ## Multi-Component Projects
 
@@ -166,6 +168,7 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 - **DevOps:** Terraform in the infra component's path, CI/CD in each component's CI workflow (both resolved from `docs/architecture.md`), deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict
 - **Test:** Test files covering all acceptance criteria, executed with results in `docs/sprints/sprint-NN/test-plans/`
 - **Sprint:** `docs/sprints/sprint-NN/sprint-summary.md` with artifact inventory, story statuses updated, Bugs section, Undocumented Changes section (commits that bypassed the workflow, from the git-log vs activity-log cross-check), Blockers section listing every unresolved failure verdict, and next-step recommendations; `platform-proposals.md` with carried-over + new proposals
+- **Work column** (Trello projects only): every card in the doing column was attempted and every card in the review column passed the skill's own build, test and start checks; no fixable finding left open short of three fix rounds; exactly one status paragraph commented on every card considered; nothing committed without `--pr`
 - **Report:** 8 files (4 reports × Markdown + HTML) in a new dated folder under `docs/reports/`, correct per-audience branding, open items surfaced
 
 ## Contributing
