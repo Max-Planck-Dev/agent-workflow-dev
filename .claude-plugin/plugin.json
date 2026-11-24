@@ -26,7 +26,8 @@
     "./.claude/skills/maxPlanck-review",
     "./.claude/skills/maxPlanck-sprint",
     "./.claude/skills/maxPlanck-test",
-    "./.claude/skills/maxPlanck-ux"
+    "./.claude/skills/maxPlanck-ux",
+    "./.claude/skills/maxPlanck-work-column"
   ],
   "agents": [
     "./.claude/agents/maxPlanck-product-owner.md",
