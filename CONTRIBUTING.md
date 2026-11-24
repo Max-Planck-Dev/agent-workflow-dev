@@ -21,8 +21,10 @@ that overrides your defaults. `AGENTS.md` at the root points here.
 
 3. **Project data stays on the machine by default.** No phase may send a project's
    documents or source code to a third-party service (another model vendor, a hosted
-   reviewer, an analytics endpoint) unless the maintainer opts that project in
-   explicitly. Opt-out files are not acceptable; the default must be "nothing leaves".
+   reviewer, an analytics endpoint) unless the project opts in explicitly. Choosing a
+   profile or feature switch that turns on an external reviewer is that opt-in; the
+   `default` profile never does. Opt-out files are not acceptable; the default must be
+   "nothing leaves".
 
 4. **One change per pull request, against `staging`.** The maintainer merges `staging`
    into `master`. No stacked PRs and no PRs that bundle several features. If a change

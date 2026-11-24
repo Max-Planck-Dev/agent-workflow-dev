@@ -59,11 +59,12 @@ Each story file (`docs/stories/story-NNN.md`) must follow this template:
 1. **Never write source code or UX specs** — that's for other agents
 2. Every story must have at least 3 testable acceptance criteria
 3. Stories must be numbered sequentially: `story-001.md`, `story-002.md`, etc. Numbering continues across sprints — never reuse or renumber existing stories
-4. PRD must include: project vision, target users, MVP scope, out-of-scope items, and end with an append-only `## Change Log` section (`| Date | Sprint | Change |`)
+4. PRD must include: project vision, target users, MVP scope, out-of-scope items, a `## Design System` section when the kickoff settled one (see rule 9), and end with an append-only `## Change Log` section (`| Date | Sprint | Change |`)
 5. **The PRD is a living document** — if `docs/prd.md` exists, update it in place and append a Change Log entry describing what changed; never regenerate it from scratch
 6. **Never silently rewrite a story** — when re-scoping an existing story (changed priority, added/removed acceptance criteria), make the edit AND append a `## History` entry stating what changed and why. New stories are new files; changed stories keep their file and gain history
 7. New stories start with `**Status:** Draft`. Only the Scrum Master updates Status afterward
 8. Read existing docs before creating new ones to avoid duplication
+9. **The `## Design System` section records the user's choices, never your taste, and never asks for them.** At the kickoff of a new project whose profile has the `design-system` switch on, resolve the topics in the kickoff skill's `design-system-choices.md` from an existing reference, a hand-written `docs/ux/design-system.md`, or answers in the arguments, and record every other row as `Designer's call` in the format that file gives. Once the section exists it is the answer: never redo it, and change a row only when a change request asks for a different look or behavior. The UX Designer turns it into `docs/ux/design-system.md`; you never write that file
 
 ## Logging
 

@@ -42,6 +42,8 @@ Existing features do not get retroactive stories — story numbering starts with
 
 **Or run `/maxPlanck-feeling-lucky` to execute the entire pipeline automatically.**
 
+The pipeline above is the `default` profile. `/maxPlanck-config show` prints the project's profile, switches and agent models; `/maxPlanck-config profile nacho` switches to a profile with the optional phases on — for example `/maxPlanck-design-review` between design and development, after which `/maxPlanck-design` is run again so the Architect rules on the proposals.
+
 Each cycle gets its own folder under `docs/sprints/` (the counter lives in `docs/sprints/.current-sprint`), so nothing from a prior cycle is ever overwritten. Living docs — the PRD, architecture doc, stories, and UX specs — are updated in place with append-only change logs and history sections.
 
 ## Requesting a Change
@@ -53,6 +55,19 @@ After a cycle, when you've tested things and want something changed, run:
 ```
 
 The Product Owner updates the affected story (with a History entry) and PRD first, then the Developer implements, the Reviewer and QA validate, and the sprint summary is refreshed — so manual asks never drift out of the documented state. QA bug reports route through the same command.
+
+## Working From a Trello Board
+
+If the project's work lives on a Trello board (and the Trello MCP server is connected), map the board once and then work its columns:
+
+```
+/maxPlanck-work-column --setup https://trello.com/b/<shortLink>/<board> source="Backlog" findings="Findings"
+/maxPlanck-work-column              # every card of the source column
+/maxPlanck-work-column doing 2      # at most two cards of another column
+/maxPlanck-work-column --plan       # show the grouping and the prompt, touch nothing
+```
+
+The cards go through `/maxPlanck-change` or `/maxPlanck-feeling-lucky`, the result is verified, and each card ends in the right column with a status paragraph saying what changed or why it stopped. Nothing is committed unless you add `--pr`; `--review` pauses on the drafted prompt before anything runs.
 
 ## Adding a Feature
 

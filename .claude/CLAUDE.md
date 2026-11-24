@@ -22,8 +22,11 @@ Product Owner → UX Designer → Architect → Developer → Code Reviewer → 
 | `maxPlanck-product-owner` | `docs/prd.md`, `docs/stories/`, `docs/sprints/.current-sprint` |
 | `maxPlanck-ux-designer` | `docs/ux/` |
 | `maxPlanck-architect` | `docs/architecture.md` |
+| `maxPlanck-design-reviewer` (profile switch `design-review`) | `docs/sprints/sprint-NN/design-review.md` (through `.claude/bin/maxPlanck-reviews.py`) |
+| `maxPlanck-tech-lead` (profile switch `plan`) | `docs/sprints/sprint-NN/dev-plan.md`, `docs/sprints/sprint-NN/plans/` |
+| `maxPlanck-plan-reviewer` (profile switch `plan-review`) | `docs/sprints/sprint-NN/plan-reviews/` (through `.claude/bin/maxPlanck-reviews.py`) |
 | `maxPlanck-developer` | Component paths per the `## Components` table in `docs/architecture.md` |
-| `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` |
+| `maxPlanck-code-reviewer` | `docs/sprints/sprint-NN/reviews/` (through `.claude/bin/maxPlanck-code-review.py`) |
 | `maxPlanck-security` | `docs/sprints/sprint-NN/security-report.md` |
 | `maxPlanck-devops` | The infra component's path and each component's CI workflow (both per `docs/architecture.md`), `docs/devops/` |
 | `maxPlanck-qa-tester` | test files within component paths, `docs/sprints/sprint-NN/test-plans/` |
@@ -39,16 +42,23 @@ Knowledge must compound across cycles — nothing is regenerated from scratch.
 **Living documents** (fixed paths, updated in place, with append-only history):
 
 - `docs/prd.md` — ends with a `## Change Log` table (`| Date | Sprint | Change |`); every edit appends an entry
-- `docs/architecture.md` — same Change Log rule
+- `docs/architecture.md` — same Change Log rule; once a design review has run, it also carries an append-only `## Design Review Log` (one row per proposal, written by the Architect)
 - `docs/stories/story-NNN.md` — sequential numbering continues forever; changes append a `## History` entry, never silently rewrite
 - `docs/ux/story-NNN-design.md` — redesigns append a `## Revision <date>` section
+- `docs/ux/design-system.md` — present when the PRD's `## Design System` source is `new` or `existing` (profile switch `design-system`); changes append a `## Revision <date>` section
 - `docs/devops/deployment.md` and each component's CI workflow — updated incrementally, never regenerated (same rule as the infrastructure code)
 
 **Sprint-scoped artifacts** (point-in-time, one folder per cycle, prior folders never modified):
 
 ```
 docs/sprints/sprint-NN/
+├── design-review.md         (profile switch design-review; one section per round)
+├── dev-plan.md              (profile switch plan; the story order — no tasks)
+├── .current-story           (profile switch story-loop; the story being planned, built or reviewed right now)
+├── plans/story-NNN-plan.md  (profile switch plan; that story's tasks, ending with its ## Plan Review Log)
+├── plan-reviews/story-NNN-plan-review.md  (profile switch plan-review; one section per round)
 ├── reviews/story-NNN-review.md
+├── integration-gate.md      (profile switch integration-gate; one ## Attempt per gate run, written by the orchestrator's helper)
 ├── test-plans/story-NNN-tests.md
 ├── security-report.md
 ├── sprint-summary.md
@@ -66,17 +76,23 @@ The current sprint number lives in `docs/sprints/.current-sprint` (two digits). 
 
 Skills are phase-named; agents are role-named, and the two sets must never collide. The security phase skill is `/maxPlanck-audit` (bound to the `maxPlanck-security` agent) and the infrastructure phase skill is `/maxPlanck-infra` (bound to the `maxPlanck-devops` agent).
 
+**Optional phases (profile switches):** `/maxPlanck-design-review` (switch `design-review`, bound to `maxPlanck-design-reviewer`) — an independent review of `docs/architecture.md` before any code; `bin/review_rounds.py` (installed as `.claude/bin/maxPlanck-reviews.py`) does the filing, so round numbers, stable `DR-NN-n` proposal IDs, open proposals and the verdict are computed by that script, never by an agent. The Architect rules on every proposal in the doc's `## Design Review Log`. `/maxPlanck-plan` (switch `plan`, bound to `maxPlanck-tech-lead`) — development plans before code: a per-sprint story order in `dev-plan.md` and one plan per story under `plans/`, which the Developer then follows; `maxPlanck-plan all` plans every story in scope, `maxPlanck-plan story-NNN` one. `/maxPlanck-plan-review story-NNN` (switch `plan-review`, needs `plan`, bound to `maxPlanck-plan-reviewer`) — the same review mechanism for one story's plan (`review_rounds.py --kind plan`, IDs `PR-NN-SSS-n`, the Tech Lead rules in the plan's `## Plan Review Log`); a second round only after a CRITICAL or HIGH proposal, never a third. The `story-loop` switch (needs `plan`) makes plan → plan review → develop → review run **one story at a time**, in the Tech Lead's `## Story Order`: every invocation names its story, routing lines carry it (`Phase review (story-003) finished → routing to plan (story-004)`), `.current-story` serves manual runs, and audit or QA failures become sprint-level fix passes (`develop all` → `review all`). The `integration-gate` switch replaces per-story full builds with quick checks: the Architect records `Check` and `Test (focused)` lines per component, the Developer runs those after each story and logs one `VERDICT` line per component (the orchestrator routes on them), and the orchestrator runs `bin/integration_gate.py` (installed as `.claude/bin/maxPlanck-gate.py`) once before the audit to build every component, writing `integration-gate.md`; `gate` is a phase in the order with no agent. The code review always goes through `bin/code_review.py` (installed as `.claude/bin/maxPlanck-code-review.py`), which derives each story's verdict from the findings and writes the reports; with the `codex` switch on it asks Codex first, staging the in-scope code (never credentials, binaries, what git ignores, symlinked files or anything under `### Excluded Paths`, and naming the files it left out) and the docs, with Claude as the fallback.
+
 **Full auto:** `/maxPlanck-feeling-lucky` — runs the entire pipeline above in one command, no manual triggering between phases.
 
 **Adopting an existing project:** `/maxPlanck-adopt` — for a codebase not started with this workflow (source code exists, no `docs/prd.md`): reverse-engineers the founding docs as-built (PRD with a Current Capabilities inventory, architecture doc with a Known Deviations & Debt section, adoption-baseline sprint-01 summary). Run this before any phase skill on a brownfield project; `setup.sh` detects the situation and recommends it at install time.
 
 **Change requests:** `/maxPlanck-change "<description>"` — runs a post-cycle change through the team (docs updated first, then implement → review → test), so manual asks never drift out of the documented state.
 
+**Working a Trello column:** `/maxPlanck-work-column [column] [count | card-ref ...]` — for a project managed on a Trello board: reads a column's cards in full, groups them by root cause, runs the batch through `/maxPlanck-change` or `/maxPlanck-feeling-lucky` (it chooses, and says which), re-runs each component's build, tests and start itself against a baseline taken before the run, sends the findings that need no answer through fix rounds of `/maxPlanck-change` (three at most), creates a card only for a finding that needs an answer, moves the finished cards to the review column and comments one status paragraph on every card it considered. It adds no phase and no agent. The board and its column names live in `.claude/maxPlanck-trello.json`, written only by `--setup <board URL>`; that file is the project's consent to post to Trello, and without it the skill does nothing. `--plan` moves nothing, `--review` pauses on the drafted prompt, `--pr` is the say-so to commit, push and open a pull request for that cycle — otherwise it never commits.
+
+**Configuration:** `/maxPlanck-config` — shows or changes the project's **profile** (`.claude/maxPlanck-config.json`: a named preset of feature switches and agent models, plus overrides). `default` is this document's pipeline exactly; other profiles turn optional phases on. Orchestrators read the switches once at run start (`python3 .claude/bin/maxPlanck-config.py features`, every switch off when the helper is absent) and the SessionStart hook `apply-workflow-config.sh` writes the models into the agent files. Unbound like the orchestrators, but it is neither a phase nor an orchestrator and never writes to `logs/agent-workflow.log`.
+
 **Contributing to the workflow itself:** `/maxPlanck-proposal "<idea>"` or `--from-pr <N>` — repo-only (a `.repo-only` marker in its directory keeps `setup.sh` and the plugin from shipping it): assesses the idea against `CONTRIBUTING.md`, implements the compliant shape with tests on a `proposal/*` branch, and opens the PR with `gh`.
 
 **Release:** `/maxPlanck-report` — the Release Manager produces the 4-report handoff pack (internal release report, client release report, blog-style release note, QA checklist) in Markdown + HTML.
 
-Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The three **orchestrator** skills (`feeling-lucky`, `adopt`, `change`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
+Each phase skill runs in a forked subagent context (`context: fork`) bound to its specific agent. The four **orchestrator** skills (`feeling-lucky`, `adopt`, `change`, `work-column`) intentionally have no fork/agent binding — they must run in the main context to invoke the other skills, and they log as `Agent: orchestrator` (a pseudo-agent name reserved for orchestrators). See `.claude/skills/*/SKILL.md` for details.
 
 ## Multi-Component Projects
 
@@ -139,15 +155,20 @@ Application code is created by agents during `/maxPlanck-develop`. Build and tes
 ## Definition of Done Per Phase
 
 - **Adopt** (brownfield only): `docs/prd.md` as-built with a Current Capabilities inventory and adoption Change Log entry, `docs/architecture.md` as-built with verified build/run commands and a Known Deviations & Debt section, `docs/sprints/.current-sprint` at `01`, adoption-baseline sprint summary
-- **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct
-- **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns)
-- **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint
-- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly; all critical feedback from this sprint's reviews/security/test reports addressed
-- **Review:** Reports in `docs/sprints/sprint-NN/reviews/` with severity-categorized findings and APPROVED/NEEDS CHANGES verdict
+- **Kickoff:** `docs/prd.md` with a Change Log entry for the current sprint + at least 3 prioritized stories with testable acceptance criteria + `docs/sprints/.current-sprint` correct; with the `design-system` switch on, a new PRD also carries a `## Design System` section resolved without asking (an existing reference, answers in the arguments, or `Designer's call`)
+- **UX:** Design files (or this-sprint revisions) in `docs/ux/` for P0/P1 stories (wireframes, component specs, interaction patterns); `docs/ux/design-system.md` written or revised first when the PRD's design system source is `new` or `existing`
+- **Design:** `docs/architecture.md` with the Components table (+ Excluded Paths), data models, API endpoints, folder structure, scaffolding commands, and a Change Log entry for the current sprint; every open design review proposal ruled on in `## Design Review Log`
+- **Design Review** (switch `design-review`): `docs/sprints/sprint-NN/design-review.md` with a `## Round` section per run naming its reviewer, proposals under stable `DR-NN-n` IDs, an Open Proposals list, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict
+- **Plan** (switch `plan`): `docs/sprints/sprint-NN/dev-plan.md` with a `## Story Order`, and `plans/story-NNN-plan.md` per story with `## Implementation Order`, a `## Tasks` table covering every acceptance criterion, and per-component verification commands
+- **Plan Review** (switch `plan-review`): `docs/sprints/sprint-NN/plan-reviews/story-NNN-plan-review.md` per reviewed story with a `## Round` section per run naming its reviewer, proposals under stable `PR-NN-SSS-n` IDs, and an APPROVED/CHANGES PROPOSED/UNAVAILABLE verdict; every proposal ruled on in that plan's `## Plan Review Log`
+- **Develop:** Code in the component paths specified by the architecture doc that compiles and follows the architecture doc exactly (and the sprint's development plans, when the `plan` switch is on); all critical feedback from this sprint's reviews/security/test reports addressed
+- **Review:** Reports in `docs/sprints/sprint-NN/reviews/` written by the review helper, naming the reviewer, with severity-categorized findings and an APPROVED/NEEDS CHANGES verdict derived from them
+- **Gate** (switch `integration-gate`): `docs/sprints/sprint-NN/integration-gate.md` with an `## Attempt` section per run and a PASS/FAIL verdict; every non-infra component built once from its own directory
 - **Security:** Security report in `docs/sprints/sprint-NN/security-report.md` with OWASP-mapped findings, ISR table (carried + new, stable IDs), and CLEAR/WARNINGS/CRITICAL FINDINGS verdict
 - **DevOps:** Terraform in the infra component's path, CI/CD in each component's CI workflow (both resolved from `docs/architecture.md`), deployment doc in `docs/devops/deployment.md` with ISR compliance mapping covering the current sprint's ISRs and READY/BLOCKED verdict
 - **Test:** Test files covering all acceptance criteria, executed with results in `docs/sprints/sprint-NN/test-plans/`
 - **Sprint:** `docs/sprints/sprint-NN/sprint-summary.md` with artifact inventory, story statuses updated, Bugs section, Undocumented Changes section (commits that bypassed the workflow, from the git-log vs activity-log cross-check), Blockers section listing every unresolved failure verdict, and next-step recommendations; `platform-proposals.md` with carried-over + new proposals
+- **Work column** (Trello projects only): every card in the doing column was attempted and every card in the review column passed the skill's own build, test and start checks; no fixable finding left open short of three fix rounds; exactly one status paragraph commented on every card considered; nothing committed without `--pr`
 - **Report:** 8 files (4 reports × Markdown + HTML) in a new dated folder under `docs/reports/`, correct per-audience branding, open items surfaced
 
 ## Contributing

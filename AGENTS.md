@@ -10,7 +10,8 @@ The rules that most often get broken, in short:
   maintainer has asked for that change. The pipeline is complete as documented.
 - `/maxPlanck-feeling-lucky` must never stop to ask the user anything. No prompts,
   no `AskUserQuestion`, no mid-run decisions. Inputs go in the command arguments.
-- Nothing in a project may be sent to a third-party service by default. Opt-in only.
+- Nothing in a project may be sent to a third-party service by default. Opt-in only,
+  through a profile or feature switch; the `default` profile never does.
 - One change per PR, against `staging`. No stacked PRs, no bundled features.
 - To contribute a change, run `/maxPlanck-proposal "<idea>"` or `--from-pr <N>`: it
   produces a compliant PR. Do not hand-roll the process.

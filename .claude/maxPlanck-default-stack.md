@@ -10,6 +10,7 @@ Architect records them as three rows in the `## Components` table of `docs/archi
 - **Framework:** Vite + React
 - **Language:** TypeScript
 - **Testing:** Vitest + React Testing Library
+- **UI:** Tailwind CSS + shadcn/ui — only when `docs/ux/design-system.md` exists and leaves the component library to the designer; its tokens become the theme's CSS variables. Without a design system, no UI library is added
 
 ## Backend
 - **Framework:** NestJS
@@ -36,6 +37,13 @@ Architect records them as three rows in the `## Components` table of `docs/archi
 - Build backend: `cd backend && npm run build`
 - Run frontend tests: `cd frontend && npx vitest`
 - Run backend tests: `cd backend && npx jest`
+
+### Per-component quick checks (profile switch `integration-gate`; run from the component directory)
+Commands below are relative to the component's directory — no `cd`. `<files>` is where the component-relative paths of the changed files go.
+- frontend — Check: `npx --no-install tsc --noEmit -p tsconfig.app.json && npm run lint`
+- frontend — Test (focused): `npx --no-install vitest related --run --passWithNoTests <files>`
+- backend — Check: `npx --no-install tsc --noEmit -p tsconfig.json && npx --no-install eslint "src/**/*.ts"` (not `npm run lint`, which in Nest runs with `--fix`)
+- backend — Test (focused): `npx --no-install jest --findRelatedTests <files> --passWithNoTests`
 
 ## Infrastructure / IaC
 - IaC Tool: Terraform
